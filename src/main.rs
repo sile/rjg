@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
 use clap::Parser;
-use rand::{Rng, SeedableRng};
+use rand::{seq::SliceRandom, Rng, SeedableRng};
 use rand_chacha::ChaChaRng;
 use serde::{de::Error, Deserialize, Serialize};
 use serde_json::Value;
@@ -57,7 +57,7 @@ impl Generator {
             ("i8", integer(prefix, i8::MIN as i64, i8::MAX as i64)),
             ("i16", integer(prefix, i16::MIN as i64, i16::MAX as i64)),
             ("i32", integer(prefix, i32::MIN as i64, i32::MAX as i64)),
-            // TODO: ("bool", oneof(..))
+            ("bool", oneof(prefix, &[Value::Bool(true), false.into()])),
         ]
         .into_iter()
         .map(|(k, v)| (format!("{}{k}", args.prefix), v))
@@ -106,6 +106,12 @@ impl Generator {
                 |e| format!("invalid generator: {{{key:?}: {value}}} ({e})");
             if key.starts_with(&self.prefix) {
                 let value = match &key[self.prefix.len()..] {
+                    "oneof" => {
+                        let gen: OneofGenerator = serde_json::from_value(value.clone())
+                            .and_then(OneofGenerator::validate)
+                            .map_err(invalid_generator_error)?;
+                        gen.generate(rng)
+                    }
                     "int" => {
                         let gen: IntegerGenerator = serde_json::from_value(value.clone())
                             .and_then(IntegerGenerator::validate)
@@ -197,6 +203,36 @@ impl FromStr for Var {
     }
 }
 
+fn oneof(prefix: &str, values: &[Value]) -> Value {
+    OneofGenerator(values.to_owned()).to_json(prefix)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OneofGenerator(Vec<Value>);
+
+impl OneofGenerator {
+    fn to_json(self, prefix: &str) -> Value {
+        let mut object = serde_json::Map::new();
+        object.insert(
+            format!("{prefix}oneof"),
+            serde_json::to_value(self).expect("unreachable"),
+        );
+        Value::Object(object)
+    }
+
+    fn validate(self) -> Result<Self, serde_json::Error> {
+        if self.0.is_empty() {
+            return Err(serde_json::Error::custom("empty array"));
+        }
+        Ok(self)
+    }
+
+    fn generate(&self, rng: &mut ChaChaRng) -> Value {
+        self.0.choose(rng).expect("unreachable").clone()
+    }
+}
+
 fn integer(prefix: &str, min: i64, max: i64) -> Value {
     IntegerGenerator::new(min, max).to_json(prefix)
 }
@@ -209,7 +245,7 @@ struct IntegerGenerator {
 }
 
 impl IntegerGenerator {
-    const fn new(min: i64, max: i64) -> Self {
+    fn new(min: i64, max: i64) -> Self {
         Self { min, max }
     }
 
@@ -234,7 +270,6 @@ impl IntegerGenerator {
     }
 }
 
-// TODO: OneofGenerator
 // TODO: StringGenerator
 // TODO: ArrayGenerator
 // TODO: ObjectGenerator
