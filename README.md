@@ -12,7 +12,7 @@ Random JSON Generator.
 - `__optional: {value, ..}`
 - `__$i`
 - `__$u8`, ...
-- `__$ascii_alphabetic`, `__$ascii_alphanumeric`, `__$ascii_digit`, `__$ascii_hexdigit`
+
 
 terminology:
 - variable: prefixed string

@@ -61,6 +61,15 @@ impl Generator {
             ("i16", integer(prefix, i16::MIN as i64, i16::MAX as i64)),
             ("i32", integer(prefix, i32::MIN as i64, i32::MAX as i64)),
             ("bool", oneof(prefix, &[Value::Bool(true), false.into()])),
+            (
+                "alpha_chars",
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".into(),
+            ),
+            (
+                "alphanum_chars",
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".into(),
+            ),
+            ("digit_chars", "0123456789".into()),
         ]
         .into_iter()
         .map(|(k, v)| (format!("{}{k}", args.prefix), v))
