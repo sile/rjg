@@ -106,7 +106,7 @@ impl Generator {
                 |e| format!("invalid generator: {{{key:?}: {value}}} ({e})");
             if key.starts_with(&self.prefix) {
                 let value = match &key[self.prefix.len()..] {
-                    "integer" => {
+                    "int" => {
                         let gen: IntegerGenerator = serde_json::from_value(value.clone())
                             .and_then(IntegerGenerator::validate)
                             .map_err(invalid_generator_error)?;
@@ -216,7 +216,7 @@ impl IntegerGenerator {
     fn to_json(self, prefix: &str) -> Value {
         let mut object = serde_json::Map::new();
         object.insert(
-            format!("{prefix}integer"),
+            format!("{prefix}int"),
             serde_json::to_value(self).expect("unreachable"),
         );
         Value::Object(object)
