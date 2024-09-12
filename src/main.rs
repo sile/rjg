@@ -157,6 +157,11 @@ impl Generator {
                             .map_err(invalid_generator_error)?;
                         gen.generate(ctx, self)?
                     }
+                    "obj" => {
+                        let gen: ObjectGenerator = serde_json::from_value(value.clone())
+                            .map_err(invalid_generator_error)?;
+                        gen.generate(ctx)
+                    }
                     _ => return Err(format!("unknown generator type: {key:?}")),
                 };
                 return Ok(value);
@@ -353,5 +358,24 @@ impl ArrayGenerator {
     }
 }
 
-// TODO: ObjectGenerator
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ObjectGenerator(Vec<Option<ObjectMember>>);
+
+impl ObjectGenerator {
+    fn generate(&self, _ctx: &mut Context) -> Value {
+        self.0
+            .iter()
+            .filter_map(|m| m.as_ref().map(|m| (m.name.clone(), m.val.clone())))
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ObjectMember {
+    name: String,
+    val: Value,
+}
+
 // TODO: OptionalGenerator
