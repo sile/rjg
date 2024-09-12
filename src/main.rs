@@ -43,22 +43,26 @@ fn main() -> Result<()> {
 pub struct Generator<'a> {
     prefix: &'a str,
     rng: &'a mut ChaChaRng,
-    vars: HashMap<String, serde_json::Value>,
+    vars: HashMap<&'a str, serde_json::Value>,
 }
 
 impl<'a> Generator<'a> {
     fn new(i: usize, prefix: &'a str, rng: &'a mut ChaChaRng) -> Self {
         let mut vars = HashMap::new();
-        vars.insert("i".to_owned(), serde_json::Value::Number(i.into()));
+        vars.insert("i", serde_json::Value::Number(i.into()));
         Self { prefix, rng, vars }
     }
 
-    fn generate(
-        &mut self,
-        input_vars: &[Var],
-        input_json: &serde_json::Value,
-    ) -> Result<serde_json::Value> {
-        todo!()
+    fn generate(&mut self, vars: &'a [Var], json: &serde_json::Value) -> Result<serde_json::Value> {
+        for var in vars {
+            let value = self.eval_json(&var.value)?;
+            self.vars.insert(&var.name, value);
+        }
+        self.eval_json(json)
+    }
+
+    fn eval_json(&mut self, json: &serde_json::Value) -> Result<serde_json::Value> {
+        todo!();
     }
 }
 
