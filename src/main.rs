@@ -49,10 +49,19 @@ pub struct Generator {
 
 impl Generator {
     fn new(args: &Args) -> Self {
-        let mut vars = [("u8", IntegerGenerator::new(0, 255).to_json(&args.prefix))]
-            .into_iter()
-            .map(|(k, v)| (format!("{}{k}", args.prefix), v))
-            .collect::<HashMap<_, _>>();
+        let prefix = &args.prefix;
+        let mut vars = [
+            ("u8", integer(prefix, 0, u8::MAX as i64)),
+            ("u16", integer(prefix, 0, u16::MAX as i64)),
+            ("u32", integer(prefix, 0, u32::MAX as i64)),
+            ("i8", integer(prefix, i8::MIN as i64, i8::MAX as i64)),
+            ("i16", integer(prefix, i16::MIN as i64, i16::MAX as i64)),
+            ("i32", integer(prefix, i32::MIN as i64, i32::MAX as i64)),
+            // TODO: ("bool", oneof(..))
+        ]
+        .into_iter()
+        .map(|(k, v)| (format!("{}{k}", args.prefix), v))
+        .collect::<HashMap<_, _>>();
         for var in &args.var {
             vars.insert(format!("{}{}", args.prefix, var.name), var.value.clone());
         }
@@ -186,6 +195,10 @@ impl FromStr for Var {
     }
 }
 
+fn integer(prefix: &str, min: i64, max: i64) -> Value {
+    IntegerGenerator::new(min, max).to_json(prefix)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct IntegerGenerator {
@@ -198,7 +211,7 @@ impl IntegerGenerator {
         Self { min, max }
     }
 
-    fn to_json(&self, prefix: &str) -> Value {
+    fn to_json(self, prefix: &str) -> Value {
         let mut object = serde_json::Map::new();
         object.insert(
             format!("{prefix}integer"),
@@ -218,3 +231,9 @@ impl IntegerGenerator {
         Value::Number(rng.gen_range(self.min..=self.max).into())
     }
 }
+
+// TODO: OneofGenerator
+// TODO: StringGenerator
+// TODO: ArrayGenerator
+// TODO: ObjectGenerator
+// TODO: OptionalGenerator
