@@ -153,7 +153,9 @@ impl Generator {
             .vars
             .get(name)
             .ok_or_else(|| format!("undefined variable: {name:?}"))?;
-        self.eval_json(rng, value, stack)
+        let value = self.eval_json(rng, value, stack)?;
+        stack.pop();
+        Ok(value)
     }
 }
 
