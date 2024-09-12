@@ -47,7 +47,8 @@ fn main() {
 #[derive(Debug)]
 struct Context<'a> {
     rng: &'a mut ChaChaRng,
-    eval_stack: Vec<&'a str>,
+    eval_stack: Vec<String>,
+    quote_val: bool,
 }
 
 impl<'a> Context<'a> {
@@ -55,6 +56,7 @@ impl<'a> Context<'a> {
         Self {
             rng,
             eval_stack: Vec::new(),
+            quote_val: false,
         }
     }
 }
@@ -105,7 +107,7 @@ impl Generator {
         self.eval_json(&mut ctx, json)
     }
 
-    fn eval_json<'a>(&'a self, ctx: &mut Context<'a>, json: &'a Value) -> Result<Value, String> {
+    fn eval_json(&self, ctx: &mut Context, json: &Value) -> Result<Value, String> {
         match json {
             Value::Null => Ok(Value::Null),
             Value::Bool(v) => Ok(Value::Bool(*v)),
@@ -116,14 +118,14 @@ impl Generator {
         }
     }
 
-    fn eval_object<'a>(
-        &'a self,
-        ctx: &mut Context<'a>,
-        object: &'a serde_json::Map<String, Value>,
+    fn eval_object(
+        &self,
+        ctx: &mut Context,
+        object: &serde_json::Map<String, Value>,
     ) -> Result<Value, String> {
         if object.len() == 1 {
-            let (key, value) = object.iter().next().expect("unreachable");
-            let value = self.eval_json(ctx, value)?;
+            let (key, raw_value) = object.iter().next().expect("unreachable");
+            let value = self.eval_json(ctx, raw_value)?;
             let invalid_generator_error =
                 |e| format!("invalid generator: {{{key:?}: {value}}} ({e})");
             if key.starts_with(&self.prefix) {
@@ -147,9 +149,13 @@ impl Generator {
                         gen.generate(ctx)
                     }
                     "arr" => {
+                        ctx.quote_val = true;
+                        let value = self.eval_json(ctx, raw_value)?;
+                        ctx.quote_val = false;
+
                         let gen: ArrayGenerator = serde_json::from_value(value.clone())
                             .map_err(invalid_generator_error)?;
-                        gen.generate(ctx)
+                        gen.generate(ctx, self)?
                     }
                     _ => return Err(format!("unknown generator type: {key:?}")),
                 };
@@ -157,13 +163,20 @@ impl Generator {
             }
         }
 
+        let quote_val = std::mem::take(&mut ctx.quote_val);
         object
             .iter()
-            .map(|(k, v)| Ok((k, self.eval_json(ctx, v)?)))
+            .map(|(k, v)| {
+                if quote_val && k == "val" {
+                    Ok((k, v.clone()))
+                } else {
+                    Ok((k, self.eval_json(ctx, v)?))
+                }
+            })
             .collect()
     }
 
-    fn eval_string<'a>(&'a self, ctx: &mut Context<'a>, s: &'a str) -> Result<Value, String> {
+    fn eval_string(&self, ctx: &mut Context, s: &str) -> Result<Value, String> {
         if !s.starts_with(&self.prefix) {
             return Ok(Value::String(s.to_owned()));
         }
@@ -171,7 +184,8 @@ impl Generator {
         self.resolve_var(ctx, s)
     }
 
-    fn resolve_var<'a>(&'a self, ctx: &mut Context<'a>, name: &'a str) -> Result<Value, String> {
+    fn resolve_var(&self, ctx: &mut Context, name: &str) -> Result<Value, String> {
+        let name = name.to_owned();
         if ctx.eval_stack.contains(&name) {
             ctx.eval_stack.push(name);
             return Err(format!(
@@ -179,11 +193,11 @@ impl Generator {
                 ctx.eval_stack.join(" -> ")
             ));
         }
-        ctx.eval_stack.push(name);
+        ctx.eval_stack.push(name.clone());
 
         let value = self
             .vars
-            .get(name)
+            .get(&name)
             .ok_or_else(|| format!("undefined variable: {name:?}"))?;
         let value = self.eval_json(ctx, value)?;
         ctx.eval_stack.pop();
@@ -329,12 +343,13 @@ struct ArrayGenerator {
 }
 
 impl ArrayGenerator {
-    fn generate(&self, _ctx: &mut Context) -> Value {
+    fn generate(&self, ctx: &mut Context, gen: &Generator) -> Result<Value, String> {
         let mut array = Vec::new();
         for _ in 0..self.len {
-            array.push(self.val.clone());
+            let val = gen.eval_json(ctx, &self.val)?;
+            array.push(val);
         }
-        Value::Array(array)
+        Ok(Value::Array(array))
     }
 }
 
