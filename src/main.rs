@@ -1,7 +1,10 @@
 use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
 use clap::Parser;
-use rand::{seq::SliceRandom, Rng, SeedableRng};
+use rand::{
+    seq::{IteratorRandom, SliceRandom},
+    Rng, SeedableRng,
+};
 use rand_chacha::ChaChaRng;
 use serde::{de::Error, Deserialize, Serialize};
 use serde_json::Value;
@@ -115,6 +118,12 @@ impl Generator {
                     "int" => {
                         let gen: IntegerGenerator = serde_json::from_value(value.clone())
                             .and_then(IntegerGenerator::validate)
+                            .map_err(invalid_generator_error)?;
+                        gen.generate(rng)
+                    }
+                    "str" => {
+                        let gen: StringGenerator = serde_json::from_value(value.clone())
+                            .and_then(StringGenerator::validate)
                             .map_err(invalid_generator_error)?;
                         gen.generate(rng)
                     }
@@ -267,6 +276,31 @@ impl IntegerGenerator {
 
     fn generate(&self, rng: &mut ChaChaRng) -> Value {
         Value::Number(rng.gen_range(self.min..=self.max).into())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StringGenerator {
+    len: usize,
+    chars: String,
+}
+
+impl StringGenerator {
+    fn validate(self) -> Result<Self, serde_json::Error> {
+        if self.chars.is_empty() {
+            return Err(serde_json::Error::custom("empty chars"));
+        }
+        Ok(self)
+    }
+
+    fn generate(&self, rng: &mut ChaChaRng) -> Value {
+        let mut s = String::new();
+        for _ in 0..self.len {
+            let c = self.chars.chars().choose(rng).expect("unreachable");
+            s.push(c);
+        }
+        Value::String(s)
     }
 }
 
