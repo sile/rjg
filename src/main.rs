@@ -162,6 +162,11 @@ impl Generator {
                             .map_err(invalid_generator_error)?;
                         gen.generate(ctx)
                     }
+                    "option" => {
+                        let gen: OptionGenerator = serde_json::from_value(value.clone())
+                            .map_err(invalid_generator_error)?;
+                        gen.generate(ctx)
+                    }
                     _ => return Err(format!("unknown generator type: {key:?}")),
                 };
                 return Ok(value);
@@ -378,4 +383,15 @@ struct ObjectMember {
     val: Value,
 }
 
-// TODO: OptionalGenerator
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct OptionGenerator(Value);
+
+impl OptionGenerator {
+    fn generate(&self, ctx: &mut Context) -> Value {
+        if ctx.rng.gen_bool(0.5) {
+            self.0.clone()
+        } else {
+            Value::Null
+        }
+    }
+}
