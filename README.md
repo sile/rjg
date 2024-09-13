@@ -12,6 +12,21 @@ Random JSON Generator.
 // Install.
 $ cargo install rjg
 
+// Generate integer arrays.
+$ rjg --count 3 '[0, {"$int": {"min": 1, "max": 8}}, 9]'
+[0,3,9]
+[0,8,9]
+[0,5,9]
+
+// Generate objects with user-defined variables.
+$ rjg --count 3 \
+      --var key='{"$str": ["key_", "$alpha", "$alpha", "$digit"]}' \
+      --var val='{"$option": "$u16"}' \
+      '{"put": {"key": "$key", "value": "$val"}}'
+{"put":{"key":"key_im3","value":56386}}
+{"put":{"key":"key_qd0","value":null}}
+{"put":{"key":"key_ag4","value":49477}}
+
 // Print help.
 $ rjg -h
 Random JSON generator
@@ -28,21 +43,6 @@ Options:
   -v, --var <NAME=JSON_TEMPLATE>  User-defined variables
   -h, --help                      Print help
   -V, --version                   Print version
-
-// Generate integer arrays.
-$ rjg --count 3 '[0, {"$int": {"min": 1, "max": 8}}, 9]'
-[0,3,9]
-[0,8,9]
-[0,5,9]
-
-// Generate objects with user-defined variables.
-$ rjg --count 3 \
-      --var key='{"$str": ["key_", "$alpha", "$alpha", "$digit"]}' \
-      --var val='{"$option": "$u16"}' \
-      '{"put": {"key": "$key", "value": "$val"}}'
-{"put":{"key":"key_im3","value":56386}}
-{"put":{"key":"key_qd0","value":null}}
-{"put":{"key":"key_ag4","value":49477}}
 ```
 
 Rules
@@ -64,9 +64,13 @@ Rules
 Generators
 ----------
 
-### `oneof`
-
 ### `int`
+
+Integer generator produces an integer between `min` and `max`:
+
+```json
+{"$int": {"min": INT, "max": INT}}
+```
 
 ### `str`
 
@@ -74,7 +78,11 @@ Generators
 
 ### `obj`
 
+### `oneof`
+
 ### `option`
+
+Note that `{"$option": VALUE}` is equivalent with `{"$oneof": [VALUE, null]}`.
 
 Pre-defined variables
 ---------------------
