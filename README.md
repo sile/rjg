@@ -182,22 +182,50 @@ Pre-defined variables
 
 ### `i`
 
-### `u8`
+`i` represents the current iteration count.
 
-### `u16`
+```console
+$ rjg --count 3 '"$i"'
+0
+1
+2
+```
 
-### `u32`
+### `u8`, `u16`, `u32`, `i8`, `i16`, `i32`, `i64`, `digit`
 
-### `i8`
+Integer variables.
+Each integer variable represents a JSON integer within the pre-defined range.
 
-### `i16`
+```console
+$ rjg --count 3 '"$u8"'
+67
+21
+75
 
-### `i32`
-
-### `i64`
-
-### `digit`
+$ rjg --count 3 '"$i32"'
+-713325780
+-1502802973
+172465743
+```
 
 ### `bool`
 
+`bool` represents `true` or `false`.
+
+```console
+$ rjg --count 3 '"$bool"'
+false
+true
+false
+```
+
 ### `alpha`
+
+`alpha` represents a JSON string containing an alphabetic character from the ASCII character set.
+
+```console
+$ rjg --count 3 '"$alpha"'
+"h"
+"A"
+"g"
+```
