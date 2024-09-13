@@ -9,7 +9,7 @@ Random JSON Generator.
 - `__string: {len, char}`
 - `__array: {len, value}`
 - `__object: [{"name", :"value"} | null, ..]`
-- `__optional: {value, ..}`
+- `__optional: {value, ..}` == `{oneof: [x, null]}`
 - `__$i`
 - `__$u8`, ...
 

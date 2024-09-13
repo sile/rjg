@@ -1,10 +1,7 @@
 use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
 use clap::Parser;
-use rand::{
-    seq::{IteratorRandom, SliceRandom},
-    Rng, SeedableRng,
-};
+use rand::{seq::SliceRandom, Rng, SeedableRng};
 use rand_chacha::ChaChaRng;
 use serde::{de::Error, Deserialize, Serialize};
 use serde_json::Value;
@@ -77,16 +74,18 @@ impl Generator {
             ("i8", integer(prefix, i8::MIN as i64, i8::MAX as i64)),
             ("i16", integer(prefix, i16::MIN as i64, i16::MAX as i64)),
             ("i32", integer(prefix, i32::MIN as i64, i32::MAX as i64)),
+            ("digit", integer(prefix, 0, 9)),
             ("bool", oneof(prefix, &[Value::Bool(true), false.into()])),
             (
-                "alpha_chars",
-                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".into(),
+                "alpha",
+                oneof(
+                    prefix,
+                    &"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                        .chars()
+                        .map(|c| Value::String(c.to_string()))
+                        .collect::<Vec<_>>(),
+                ),
             ),
-            (
-                "alphanum_chars",
-                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".into(),
-            ),
-            ("digit_chars", "0123456789".into()),
         ]
         .into_iter()
         .map(|(k, v)| (format!("{}{k}", args.prefix), v))
@@ -144,7 +143,6 @@ impl Generator {
                     }
                     "str" => {
                         let gen: StringGenerator = serde_json::from_value(value.clone())
-                            .and_then(StringGenerator::validate)
                             .map_err(invalid_generator_error)?;
                         gen.generate(ctx)
                     }
@@ -322,24 +320,17 @@ impl IntegerGenerator {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct StringGenerator {
-    len: usize,
-    chars: String,
-}
+struct StringGenerator(Vec<Value>);
 
 impl StringGenerator {
-    fn validate(self) -> Result<Self, serde_json::Error> {
-        if self.chars.is_empty() {
-            return Err(serde_json::Error::custom("empty chars"));
-        }
-        Ok(self)
-    }
-
-    fn generate(&self, ctx: &mut Context) -> Value {
+    fn generate(&self, _ctx: &mut Context) -> Value {
         let mut s = String::new();
-        for _ in 0..self.len {
-            let c = self.chars.chars().choose(ctx.rng).expect("unreachable");
-            s.push(c);
+        for v in &self.0 {
+            match v {
+                Value::Null => {}
+                Value::String(v) => s.push_str(v),
+                _ => s.push_str(&v.to_string()),
+            }
         }
         Value::String(s)
     }
