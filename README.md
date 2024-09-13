@@ -1,6 +1,11 @@
 rjg
 ===
 
+[![jrg](https://img.shields.io/crates/v/jrg.svg)](https://crates.io/crates/jrg)
+[![Documentation](https://docs.rs/jrg/badge.svg)](https://docs.rs/jrg)
+[![Actions Status](https://github.com/sile/jrg/workflows/CI/badge.svg)](https://github.com/sile/jrg/actions)
+![License](https://img.shields.io/crates/l/jrg)
+
 Random JSON Generator.
 
 ```console
@@ -24,7 +29,11 @@ Options:
   -h, --help                      Print help
   -V, --version                   Print version
 
-// foo
+// Generate integer arrays.
+$ rjg -c 3 '[0, {"$int": {"min": 1, "max": 8}}, 9]'
+[0,3,9]
+[0,8,9]
+[0,5,9]
 ```
 
 
