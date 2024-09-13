@@ -66,7 +66,7 @@ Generators
 
 ### `int`
 
-`int` generator produces a JSON integer between `min` and `max`:
+`int` generator produces a JSON integer between `min` and `max`.
 
 ```
 {"$int": {"min": INT, "max": INT}}
@@ -83,8 +83,8 @@ $ rjg --count 3 '{"$int": {"min": -5, "max": 5}}'
 
 ### `str`
 
-`str` generator procudes a JSON string by concating the values with in the given array
-(note that `null` values are filtered out from the result):
+`str` generator procudes a JSON string by concating the values with in the given array.
+Note that `null` values are filtered out from the result.
 
 ```
 {"$str": [VALUE, ...]}
@@ -110,6 +110,27 @@ $ rjg --count 3 '{"$str": {"$arr": {"len": 8, "val": "$digit"}}}'
 ```
 
 ### `arr`
+
+`arr` generator produces a JSON array based on the provided length and value.
+Unlike other generators, `arr` postpones the evaluation of `val` until each individual array item is generated.
+
+```
+{"$arr": {"len": INT, "val": VALUE}}
+```
+
+### Examples
+
+```console
+$ rjg --count 3 '{"$arr": {"len": 3, "val": "$digit"}}'
+[0,0,2]
+[6,7,3]
+[1,7,5]
+
+$ rjg --count 3 --var n='{"$int": {"min": 0, "max": 8}}' '{"$arr": {"len": "$n", "val": "$digit"}}'
+[7,4,5,0,4]
+[6,2,4,2,6,9,3]
+[]
+```
 
 ### `obj`
 
