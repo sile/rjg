@@ -66,7 +66,7 @@ Generators
 
 ### `int`
 
-`int` generator produces an integer between `min` and `max`:
+`int` generator produces a JSON integer between `min` and `max`:
 
 ```
 {"$int": {"min": INT, "max": INT}}
@@ -83,6 +83,32 @@ $ rjg --count 3 '{"$int": {"min": -5, "max": 5}}'
 
 ### `str`
 
+`str` generator procudes a JSON string by concating the values with in the given array
+(note that `null` values are filtered out from the result):
+
+```
+{"$str": [VALUE, ...]}
+```
+
+### Examples
+
+```console
+$ rjg --count 3 '{"$str": ["$digit", " + ", "$digit"]}'
+"1 + 0"
+"7 + 5"
+"0 + 8"
+
+$ rjg --count 3 '{"$str": [{"$option": "_"}, "$alpha", "$alpha", "$digit"]}'
+"Ae8"
+"_UQ6"
+"Cd1"
+
+$ rjg --count 3 '{"$str": {"$arr": {"len": 8, "val": "$digit"}}}'
+"84534098"
+"91367444"
+"16584252"
+```
+
 ### `arr`
 
 ### `obj`
@@ -91,7 +117,8 @@ $ rjg --count 3 '{"$int": {"min": -5, "max": 5}}'
 
 ### `option`
 
-Note that `{"$option": VALUE}` is equivalent with `{"$oneof": [VALUE, null]}`.
+`option` is syntactic sugar for `oneof`.
+That is, `{"$option": VALUE}` is equivalent with `{"$oneof": [VALUE, null]}`.
 
 Pre-defined variables
 ---------------------
