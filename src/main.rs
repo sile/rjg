@@ -8,20 +8,26 @@ use serde_json::Value;
 
 #[derive(Parser)]
 #[clap(version)]
+/// Random JSON generator.
 struct Args {
+    /// Number of JSON values to generate.
     #[clap(short, long, default_value = "1")]
     count: NonZeroUsize,
 
+    /// Prefix for variable and generator names.
     #[clap(short, long, default_value = "$")]
     prefix: String,
 
-    #[clap(short, long)]
-    var: Vec<Var>,
-
+    /// Seed for the random number generator.
     #[clap(short, long)]
     seed: Option<u64>,
 
-    json: Json,
+    /// User-defined variables.
+    #[clap(short, long, value_name = "NAME=JSON_TEMPLATE")]
+    var: Vec<Var>,
+
+    /// JSON template used to generate values.
+    json_template: Json,
 }
 
 fn main() {
@@ -29,7 +35,7 @@ fn main() {
     let mut generator = Generator::new(&args);
     let mut rng = ChaChaRng::seed_from_u64(args.seed.unwrap_or_else(rand::random));
     for i in 0..args.count.get() {
-        match generator.generate(&mut rng, i, &args.json.0) {
+        match generator.generate(&mut rng, i, &args.json_template.0) {
             Ok(json) => {
                 println!("{json}");
             }
@@ -165,7 +171,7 @@ impl Generator {
                             .map_err(invalid_generator_error)?;
                         gen.generate(ctx)
                     }
-                    _ => return Err(format!("unknown generator type: {key:?}")),
+                    _ => return Err(format!("unknown generator: {key:?}")),
                 };
                 return Ok(value);
             }
