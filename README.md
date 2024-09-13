@@ -69,10 +69,10 @@ Generators
 `int` generator produces a JSON integer between `min` and `max`.
 
 ```
-{"$int": {"min": INT, "max": INT}}
+{"$int": {"min": INTEGER, "max": INTEGER}}
 ```
 
-#### Examples
+#### `int` examples
 
 ```console
 $ rjg --count 3 '{"$int": {"min": -5, "max": 5}}'
@@ -90,7 +90,7 @@ Note that `null` values are filtered out from the result.
 {"$str": [VALUE, ...]}
 ```
 
-### Examples
+#### `str` examples
 
 ```console
 $ rjg --count 3 '{"$str": ["$digit", " + ", "$digit"]}'
@@ -115,10 +115,10 @@ $ rjg --count 3 '{"$str": {"$arr": {"len": 8, "val": "$digit"}}}'
 Unlike other generators, `arr` postpones the evaluation of `val` until each individual array item is generated.
 
 ```
-{"$arr": {"len": INT, "val": VALUE}}
+{"$arr": {"len": INTEGER, "val": VALUE}}
 ```
 
-### Examples
+#### `arr` examples
 
 ```console
 $ rjg --count 3 '{"$arr": {"len": 3, "val": "$digit"}}'
@@ -126,7 +126,7 @@ $ rjg --count 3 '{"$arr": {"len": 3, "val": "$digit"}}'
 [6,7,3]
 [1,7,5]
 
-$ rjg --count 3 --var n='{"$int": {"min": 0, "max": 8}}' '{"$arr": {"len": "$n", "val": "$digit"}}'
+$ rjg --count 3 '{"$arr": {"len": "$digit", "val": "$digit"}}'
 [7,4,5,0,4]
 [6,2,4,2,6,9,3]
 []
@@ -134,7 +134,43 @@ $ rjg --count 3 --var n='{"$int": {"min": 0, "max": 8}}' '{"$arr": {"len": "$n",
 
 ### `obj`
 
+`obj` generator produces a JSON object from an array of objects that specify a name and value.
+Note that `null` values in the array are ignored when producing the resulting object.
+
+```
+{"$obj": [{"name": STRING, "val": VALUE} | null, ...]}
+```
+
+#### `obj` examples
+
+```console
+$ rjg --count 3 '{"$obj": [{"name":"foo", "val":"$u8"}, {"$option":{"name":"bar", "val":"$i8"}}]}'
+{"foo":119}
+{"bar":-75,"foo":42}
+{"bar":-87,"foo":233}
+
+$ rjg --count 3 --var key='{"$str": ["$alpha", "$alpha"]}' '{"$obj": [{"name":"$key", "val":"$u8"}]}'
+{"jz":63}
+{"MA":234}
+{"Ir":164}
+```
+
 ### `oneof`
+
+`oneof` generator selects a JSON value from the given array.
+
+```
+{"$oneof": [VALUE, ...]}
+```
+
+#### `oneof` examples
+
+```console
+$ rjg --count 3 '{"$oneof": ["foo", "bar", "baz"]}'
+"bar"
+"bar"
+"foo"
+```
 
 ### `option`
 
