@@ -2,6 +2,12 @@
 name = "rjg"
 version = "0.1.0"
 edition = "2021"
+authors = ["Takeru Ohta <phjgt308@gmail.com>"]
+license = "MIT"
+description = "Random JSON Generator"
+homepage = "https://github.com/sile/rjg"
+repository = "https://github.com/sile/rjg"
+readme = "README.md"
 
 [dependencies]
 clap = { version = "4.5.17", features = ["derive"] }
