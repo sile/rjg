@@ -56,10 +56,10 @@ Rules
     - The prefix can be changed using `--prefix` option.
     - Both variables and generators cannot be used as object names.
 - **Variables**:
-  - Variables can be pre-defined or user-defined (the latter are defined via `--var` option)
+  - Variables can be [pre-defined](#pre-defined-variables) or user-defined (the latter are defined via `--var` option)
   - The value of a variable is evaluated to a JSON value when generating a JSON value
 - **Generators**:
-  - Generators produce a random JSON value based on their content
+  - [Generators](#generators) produce a random JSON value based on their content
 
 Generators
 ----------
