@@ -30,14 +30,15 @@ Options:
   -V, --version                   Print version
 
 // Generate integer arrays.
-$ rjg -c 3 '[0, {"$int": {"min": 1, "max": 8}}, 9]'
+$ rjg --count 3 '[0, {"$int": {"min": 1, "max": 8}}, 9]'
 [0,3,9]
 [0,8,9]
 [0,5,9]
 
 // Generate objects with user-defined variables.
-$ rjg -c 3 --var key='{"$str": ["key_", "$alpha", "$alpha", "$digit"]}' \
-           --var val='{"$option": "$u16"}' \
+$ rjg --count 3 \
+      --var key='{"$str": ["key_", "$alpha", "$alpha", "$digit"]}' \
+      --var val='{"$option": "$u16"}' \
       '{"put": {"key": "$key", "value": "$val"}}'
 {"put":{"key":"key_im3","value":56386}}
 {"put":{"key":"key_qd0","value":null}}
