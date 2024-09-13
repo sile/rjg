@@ -80,6 +80,7 @@ impl Generator {
             ("i8", integer(prefix, i8::MIN as i64, i8::MAX as i64)),
             ("i16", integer(prefix, i16::MIN as i64, i16::MAX as i64)),
             ("i32", integer(prefix, i32::MIN as i64, i32::MAX as i64)),
+            ("i64", integer(prefix, i64::MIN, i64::MAX)),
             ("digit", integer(prefix, 0, 9)),
             ("bool", oneof(prefix, &[Value::Bool(true), false.into()])),
             (

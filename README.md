@@ -45,10 +45,10 @@ $ rjg --count 3 \
 {"put":{"key":"key_ag4","value":49477}}
 ```
 
-Generating Rules
-----------------
+Rules
+-----
 
-- Literal JSON values within the template are outputted exactly as they are
+- Literal JSON values within a JSON template are outputted exactly as they are
 - Non-literal JSON values are classified as follows:
   - **Variables**: JSON strings starting with the `$` prefix
   - **Generators**: Single-member objects with a key starting with the `$` prefix
@@ -64,15 +64,39 @@ Generating Rules
 Generators
 ----------
 
-- `__oneof`
-- `__integer: {min, max}`
-- `__string: {len, char}`
-- `__array: {len, value}`
-- `__object: [{"name", :"value"} | null, ..]`
-- `__optional: {value, ..}` == `{oneof: [x, null]}`
-- `__$i`
-- `__$u8`, ...
+### `oneof`
 
+### `int`
+
+### `str`
+
+### `arr`
+
+### `obj`
+
+### `option`
 
 Pre-defined variables
 ---------------------
+
+### `i`
+
+### `u8`
+
+### `u16`
+
+### `u32`
+
+### `i8`
+
+### `i16`
+
+### `i32`
+
+### `i64`
+
+### `digit`
+
+### `bool`
+
+### `alpha`
