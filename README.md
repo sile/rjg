@@ -45,6 +45,24 @@ $ rjg --count 3 \
 {"put":{"key":"key_ag4","value":49477}}
 ```
 
+Generating Rules
+----------------
+
+- Literal JSON values within the template are outputted exactly as they are
+- Non-literal JSON values are classified as follows:
+  - **Variables**: JSON strings starting with the `$` prefix
+  - **Generators**: Single-member objects with a key starting with the `$` prefix
+  - NOTE:
+    - The prefix can be changed using `--prefix` option.
+    - Both variables and generators cannot be used as object names.
+- **Variables**:
+  - Variables can be pre-defined or user-defined (the latter are defined via `--var` option)
+  - The value of a variable is evaluated to a JSON value when generating a JSON value
+- **Generators**:
+  - Generators produce a random JSON value based on their content
+
+Generators
+----------
 
 - `__oneof`
 - `__integer: {min, max}`
@@ -56,7 +74,5 @@ $ rjg --count 3 \
 - `__$u8`, ...
 
 
-terminology:
-- variable: prefixed string
-- generator: single entry object having prefixed name
-- both only happens in value positions (not object name)
+Pre-defined variables
+---------------------
