@@ -266,7 +266,7 @@ fn oneof(prefix: &str, values: &[Value]) -> Value {
 struct OneofGenerator(Vec<Value>);
 
 impl OneofGenerator {
-    fn to_json(self, prefix: &str) -> Value {
+    fn to_json(&self, prefix: &str) -> Value {
         let mut object = serde_json::Map::new();
         object.insert(
             format!("{prefix}oneof"),
@@ -303,7 +303,7 @@ impl IntegerGenerator {
         Self { min, max }
     }
 
-    fn to_json(self, prefix: &str) -> Value {
+    fn to_json(&self, prefix: &str) -> Value {
         let mut object = serde_json::Map::new();
         object.insert(
             format!("{prefix}int"),
