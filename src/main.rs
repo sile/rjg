@@ -67,13 +67,14 @@ impl<'a> Context<'a> {
 #[derive(Debug)]
 pub struct Generator {
     prefix: String,
+    predefined_vars: HashMap<String, Value>,
     vars: HashMap<String, Value>,
 }
 
 impl Generator {
     fn new(args: &Args) -> Self {
         let prefix = &args.prefix;
-        let mut vars = [
+        let mut predefined_vars = [
             ("u8", integer(prefix, 0, u8::MAX as i64)),
             ("u16", integer(prefix, 0, u16::MAX as i64)),
             ("u32", integer(prefix, 0, u32::MAX as i64)),
@@ -98,18 +99,20 @@ impl Generator {
         .map(|(k, v)| (format!("{}{k}", args.prefix), v))
         .collect::<HashMap<_, _>>();
         for var in &args.var {
-            vars.insert(format!("{}{}", args.prefix, var.name), var.value.clone());
+            predefined_vars.insert(format!("{}{}", args.prefix, var.name), var.value.clone());
         }
         Self {
             prefix: args.prefix.clone(),
-            vars,
+            predefined_vars,
+            vars: HashMap::new(),
         }
     }
 
     fn generate(&mut self, rng: &mut ChaChaRng, i: usize, json: &Value) -> Result<Value, String> {
         let mut ctx = Context::new(rng);
-        self.vars
-            .insert(format!("{}{i}", self.prefix), Value::Number(i.into()));
+        self.predefined_vars
+            .insert(format!("{}i", self.prefix), Value::Number(i.into()));
+        self.vars = self.predefined_vars.clone();
         self.eval_json(&mut ctx, json)
     }
 
