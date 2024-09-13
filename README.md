@@ -1,10 +1,10 @@
 rjg
 ===
 
-[![jrg](https://img.shields.io/crates/v/jrg.svg)](https://crates.io/crates/jrg)
-[![Documentation](https://docs.rs/jrg/badge.svg)](https://docs.rs/jrg)
-[![Actions Status](https://github.com/sile/jrg/workflows/CI/badge.svg)](https://github.com/sile/jrg/actions)
-![License](https://img.shields.io/crates/l/jrg)
+[![rjg](https://img.shields.io/crates/v/rjg.svg)](https://crates.io/crates/rjg)
+[![Documentation](https://docs.rs/rjg/badge.svg)](https://docs.rs/rjg)
+[![Actions Status](https://github.com/sile/rjg/workflows/CI/badge.svg)](https://github.com/sile/rjg/actions)
+![License](https://img.shields.io/crates/l/rjg)
 
 Random JSON Generator.
 
