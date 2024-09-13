@@ -66,10 +66,19 @@ Generators
 
 ### `int`
 
-Integer generator produces an integer between `min` and `max`:
+`int` generator produces an integer between `min` and `max`:
 
-```json
+```
 {"$int": {"min": INT, "max": INT}}
+```
+
+#### Examples
+
+```console
+$ rjg --count 3 '{"$int": {"min": -5, "max": 5}}'
+-3
+5
+4
 ```
 
 ### `str`
