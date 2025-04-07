@@ -8,16 +8,8 @@ use serde_json::Value;
 struct Args {
     count: NonZeroUsize,
     prefix: String,
-
-    /// Seed for the random number generator.
-    //#[clap(short, long)]
     seed: Option<u64>,
-
-    /// User-defined variables.
-    //#[clap(short, long, value_name = "NAME=JSON_TEMPLATE")]
     var: Vec<Var>,
-
-    /// JSON template used to generate values.
     json_template: Json,
 }
 
