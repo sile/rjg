@@ -1,4 +1,9 @@
-use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashMap},
+    io,
+    num::NonZeroUsize,
+    str::FromStr,
+};
 
 use nojson::{DisplayJson, FromRawJsonValue, Json, JsonParseError};
 use rand::{Rng, SeedableRng, seq::IndexedRandom};
@@ -9,7 +14,7 @@ struct Args {
     prefix: String,
     seed: Option<u64>,
     var: Vec<Var>,
-    json_template: Template,
+    json_template: ValueTemplate,
 }
 
 impl Args {
@@ -95,15 +100,35 @@ fn main() -> noargs::Result<()> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Template {}
+enum StringOrVariable {
+    String(String),
+    Variable(String),
+}
 
-impl<'text> FromRawJsonValue<'text> for Template {
+#[derive(Debug, Clone)]
+enum ObjectOrGenerator {
+    Object(BTreeMap<String, ValueTemplate>),
+    Generator,
+}
+
+#[derive(Debug, Clone)]
+enum ValueTemplate {
+    Null,
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
+    String(StringOrVariable),
+    Array(Vec<ValueTemplate>),
+    Object(ObjectOrGenerator),
+}
+
+impl<'text> FromRawJsonValue<'text> for ValueTemplate {
     fn from_raw_json_value(value: nojson::RawJsonValue<'text, '_>) -> Result<Self, JsonParseError> {
         todo!()
     }
 }
 
-impl FromStr for Template {
+impl FromStr for ValueTemplate {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -186,7 +211,7 @@ impl Generator {
         &mut self,
         rng: &mut ChaChaRng,
         i: usize,
-        json: &Template,
+        json: &ValueTemplate,
     ) -> Result<Value, String> {
         // let mut ctx = Context::new(rng);
         // self.predefined_vars
@@ -319,7 +344,7 @@ impl Generator {
 #[derive(Debug, Clone)]
 struct Var {
     name: String,
-    value: Template,
+    value: ValueTemplate,
 }
 
 impl FromStr for Var {
