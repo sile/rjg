@@ -1,9 +1,9 @@
 use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
 use clap::Parser;
-use rand::{seq::SliceRandom, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaChaRng;
-use serde::{de::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error};
 use serde_json::Value;
 
 #[derive(Parser)]
