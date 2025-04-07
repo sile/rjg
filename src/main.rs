@@ -1,37 +1,84 @@
 use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
-use clap::Parser;
 use rand::{Rng, SeedableRng, seq::IndexedRandom};
 use rand_chacha::ChaChaRng;
 use serde::{Deserialize, Serialize, de::Error};
 use serde_json::Value;
 
-#[derive(Parser)]
-#[clap(version)]
-/// Random JSON generator.
 struct Args {
-    /// Number of JSON values to generate.
-    #[clap(short, long, default_value = "1")]
     count: NonZeroUsize,
-
-    /// Prefix for variable and generator names.
-    #[clap(short, long, default_value = "$")]
     prefix: String,
-
-    /// Seed for the random number generator.
-    #[clap(short, long)]
     seed: Option<u64>,
-
-    /// User-defined variables.
-    #[clap(short, long, value_name = "NAME=JSON_TEMPLATE")]
     var: Vec<Var>,
-
-    /// JSON template used to generate values.
     json_template: Json,
 }
 
-fn main() {
-    let args = Args::parse();
+impl Args {
+    fn parse() -> noargs::Result<Option<Self>> {
+        let mut args = noargs::raw_args();
+        args.metadata_mut().app_name = env!("CARGO_PKG_NAME");
+        args.metadata_mut().app_description = env!("CARGO_PKG_DESCRIPTION");
+
+        noargs::HELP_FLAG.take_help(&mut args);
+        if noargs::VERSION_FLAG.take(&mut args).is_present() {
+            println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+            return Ok(None);
+        }
+
+        let this = Self {
+            count: noargs::opt("count")
+                .short('c')
+                .ty("INTEGER")
+                .default("1")
+                .doc("Number of JSON values to generate")
+                .take(&mut args)
+                .parse()?,
+            prefix: noargs::opt("prefix")
+                .short('p')
+                .ty("STRING")
+                .default("$")
+                .doc("Prefix for variable and generator names")
+                .take(&mut args)
+                .parse()?,
+            seed: noargs::opt("seed")
+                .short('s')
+                .ty("INTEGER")
+                .doc("Seed for the random number generator")
+                .take(&mut args)
+                .parse_if_present()?,
+            var: {
+                let mut vars = Vec::new();
+                while let Some(var) = noargs::opt("var")
+                    .short('v')
+                    .ty("NAME=JSON_TEMPLATE")
+                    .doc("User-defined variables")
+                    .take(&mut args)
+                    .parse_if_present()?
+                {
+                    vars.push(var);
+                }
+                vars
+            },
+            json_template: noargs::arg("JSON_TEMPLATE")
+                .doc("JSON template used to generate values")
+                .example(r#"[0, {"$int": {"min": 1, "max": 8}}, 9]"#)
+                .take(&mut args)
+                .parse()?,
+        };
+
+        if let Some(help) = args.finish()? {
+            print!("{help}");
+            Ok(None)
+        } else {
+            Ok(Some(this))
+        }
+    }
+}
+
+fn main() -> noargs::Result<()> {
+    let Some(args) = Args::parse()? else {
+        return Ok(());
+    };
     let mut generator = Generator::new(&args);
     let mut rng = ChaChaRng::seed_from_u64(args.seed.unwrap_or_else(rand::random));
     for i in 0..args.count.get() {
@@ -45,6 +92,7 @@ fn main() {
             }
         }
     }
+    Ok(())
 }
 
 #[derive(Debug)]
