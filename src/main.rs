@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
 use clap::Parser;
-use rand::{Rng, SeedableRng, seq::SliceRandom};
+use rand::{Rng, SeedableRng, seq::IndexedRandom};
 use rand_chacha::ChaChaRng;
 use serde::{Deserialize, Serialize, de::Error};
 use serde_json::Value;
@@ -324,7 +324,7 @@ impl IntegerGenerator {
     }
 
     fn generate(&self, ctx: &mut Context) -> Value {
-        Value::Number(ctx.rng.gen_range(self.min..=self.max).into())
+        Value::Number(ctx.rng.random_range(self.min..=self.max).into())
     }
 }
 
@@ -389,7 +389,7 @@ struct OptionGenerator(Value);
 
 impl OptionGenerator {
     fn generate(&self, ctx: &mut Context) -> Value {
-        if ctx.rng.gen_bool(0.5) {
+        if ctx.rng.random_bool(0.5) {
             self.0.clone()
         } else {
             Value::Null
