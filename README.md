@@ -28,20 +28,23 @@ $ rjg --count 3 \
 
 // Print help.
 $ rjg -h
-Random JSON generator
+Random JSON Generator
 
 Usage: rjg [OPTIONS] <JSON_TEMPLATE>
 
+Example:
+  $ rjg '[0, {"$int": {"min": 1, "max": 8}}, 9]'
+
 Arguments:
-  <JSON_TEMPLATE>  JSON template used to generate values
+  <JSON_TEMPLATE> JSON template used to generate values
 
 Options:
-  -c, --count <COUNT>             Number of JSON values to generate [default: 1]
-  -p, --prefix <PREFIX>           Prefix for variable and generator names [default: $]
-  -s, --seed <SEED>               Seed for the random number generator
-  -v, --var <NAME=JSON_TEMPLATE>  User-defined variables
-  -h, --help                      Print help
-  -V, --version                   Print version
+  -h, --help                     Print help ('--help' for full help, '-h' for summary)
+      --version                  Print version
+  -c, --count <INTEGER>          Number of JSON values to generate [default: 1]
+  -p, --prefix <STRING>          Prefix for variable and generator names [default: $]
+  -s, --seed <INTEGER>           Seed for the random number generator
+  -v, --var <NAME=JSON_TEMPLATE> User-defined variables
 ```
 
 Rules

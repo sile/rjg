@@ -69,6 +69,7 @@ impl Args {
             },
             json_template: noargs::arg("JSON_TEMPLATE")
                 .doc("JSON template used to generate values")
+                .example(r#"[0, {"$int": {"min": 1, "max": 8}}, 9]"#)
                 .take(&mut args)
                 .parse()?,
         };
