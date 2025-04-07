@@ -1,17 +1,13 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    io,
-    num::NonZeroUsize,
-    str::FromStr,
-};
+use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
 
-use nojson::{DisplayJson, FromRawJsonValue, Json, JsonParseError};
-use rand::{Rng, SeedableRng, seq::IndexedRandom};
+use nojson::{
+    DisplayJson, FromRawJsonValue, Json, JsonParseError, JsonValueKind, RawJson, RawJsonValue,
+};
+use rand::SeedableRng;
 use rand_chacha::ChaChaRng;
 
 struct Args {
     count: NonZeroUsize,
-    prefix: String,
     seed: Option<u64>,
     var: Vec<Var>,
     json_template: ValueTemplate,
@@ -29,19 +25,20 @@ impl Args {
             return Ok(None);
         }
 
+        let prefix: String = noargs::opt("prefix")
+            .short('p')
+            .ty("STRING")
+            .default("$")
+            .doc("Prefix for variable and generator names")
+            .take(&mut args)
+            .parse()?;
+
         let this = Self {
             count: noargs::opt("count")
                 .short('c')
                 .ty("INTEGER")
                 .default("1")
                 .doc("Number of JSON values to generate")
-                .take(&mut args)
-                .parse()?,
-            prefix: noargs::opt("prefix")
-                .short('p')
-                .ty("STRING")
-                .default("$")
-                .doc("Prefix for variable and generator names")
                 .take(&mut args)
                 .parse()?,
             seed: noargs::opt("seed")
@@ -67,7 +64,7 @@ impl Args {
                 .doc("JSON template used to generate values")
                 .example(r#"[0, {"$int": {"min": 1, "max": 8}}, 9]"#)
                 .take(&mut args)
-                .parse()?,
+                .parse_with(|a| ValueTemplate::new(a.raw_value_or_empty(), &prefix))?,
         };
 
         if let Some(help) = args.finish()? {
@@ -111,6 +108,19 @@ enum ObjectOrGenerator {
     Generator,
 }
 
+fn invalid<E>(raw: RawJsonValue<'_, '_>) -> impl FnOnce(E) -> JsonParseError
+where
+    E: 'static + Send + Sync + std::error::Error,
+{
+    let kind = raw.kind();
+    let position = raw.position();
+    move |e| JsonParseError::InvalidValue {
+        kind,
+        position,
+        error: e.into(),
+    }
+}
+
 #[derive(Debug, Clone)]
 enum ValueTemplate {
     Null,
@@ -122,8 +132,37 @@ enum ValueTemplate {
     Object(ObjectOrGenerator),
 }
 
+impl ValueTemplate {
+    fn new(text: &str, prefix: &str) -> Result<Self, String> {
+        let json = RawJson::parse(text).map_err(|e| e.to_string())?;
+        let raw = json.value();
+        Self::from_raw(raw, prefix).map_err(|e| e.to_string())
+    }
+
+    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        match raw.kind() {
+            JsonValueKind::Null => Ok(Self::Null),
+            JsonValueKind::Boolean => Ok(Self::Boolean(
+                raw.as_boolean_str()?.parse().map_err(invalid(raw))?,
+            )),
+            JsonValueKind::Integer => Ok(Self::Integer(
+                raw.as_integer_str()?.parse().map_err(invalid(raw))?,
+            )),
+            JsonValueKind::Float => Ok(Self::Float(
+                raw.as_float_str()?.parse().map_err(invalid(raw))?,
+            )),
+            JsonValueKind::String => todo!(),
+            JsonValueKind::Array => todo!(),
+            JsonValueKind::Object => todo!(),
+        }
+    }
+}
+
+// TODO: remove
 impl<'text> FromRawJsonValue<'text> for ValueTemplate {
-    fn from_raw_json_value(value: nojson::RawJsonValue<'text, '_>) -> Result<Self, JsonParseError> {
+    fn from_raw_json_value(
+        _value: nojson::RawJsonValue<'text, '_>,
+    ) -> Result<Self, JsonParseError> {
         todo!()
     }
 }
