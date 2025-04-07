@@ -1,9 +1,9 @@
 use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
 use clap::Parser;
-use rand::{seq::SliceRandom, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaChaRng;
-use serde::{de::Error, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error};
 use serde_json::Value;
 
 #[derive(Parser)]
@@ -140,40 +140,40 @@ impl Generator {
             if key.starts_with(&self.prefix) {
                 let value = match &key[self.prefix.len()..] {
                     "oneof" => {
-                        let gen: OneofGenerator = serde_json::from_value(value.clone())
+                        let gn: OneofGenerator = serde_json::from_value(value.clone())
                             .and_then(OneofGenerator::validate)
                             .map_err(invalid_generator_error)?;
-                        gen.generate(ctx)
+                        gn.generate(ctx)
                     }
                     "int" => {
-                        let gen: IntegerGenerator = serde_json::from_value(value.clone())
+                        let gn: IntegerGenerator = serde_json::from_value(value.clone())
                             .and_then(IntegerGenerator::validate)
                             .map_err(invalid_generator_error)?;
-                        gen.generate(ctx)
+                        gn.generate(ctx)
                     }
                     "str" => {
-                        let gen: StringGenerator = serde_json::from_value(value.clone())
+                        let gn: StringGenerator = serde_json::from_value(value.clone())
                             .map_err(invalid_generator_error)?;
-                        gen.generate(ctx)
+                        gn.generate(ctx)
                     }
                     "arr" => {
                         ctx.quote_val = true;
                         let value = self.eval_json(ctx, raw_value)?;
                         ctx.quote_val = false;
 
-                        let gen: ArrayGenerator = serde_json::from_value(value.clone())
+                        let gn: ArrayGenerator = serde_json::from_value(value.clone())
                             .map_err(invalid_generator_error)?;
-                        gen.generate(ctx, self)?
+                        gn.generate(ctx, self)?
                     }
                     "obj" => {
-                        let gen: ObjectGenerator = serde_json::from_value(value.clone())
+                        let gn: ObjectGenerator = serde_json::from_value(value.clone())
                             .map_err(invalid_generator_error)?;
-                        gen.generate(ctx)
+                        gn.generate(ctx)
                     }
                     "option" => {
-                        let gen: OptionGenerator = serde_json::from_value(value.clone())
+                        let gn: OptionGenerator = serde_json::from_value(value.clone())
                             .map_err(invalid_generator_error)?;
-                        gen.generate(ctx)
+                        gn.generate(ctx)
                     }
                     _ => return Err(format!("unknown generator: {key:?}")),
                 };
@@ -354,10 +354,10 @@ struct ArrayGenerator {
 }
 
 impl ArrayGenerator {
-    fn generate(&self, ctx: &mut Context, gen: &Generator) -> Result<Value, String> {
+    fn generate(&self, ctx: &mut Context, gn: &Generator) -> Result<Value, String> {
         let mut array = Vec::new();
         for _ in 0..self.len {
-            let val = gen.eval_json(ctx, &self.val)?;
+            let val = gn.eval_json(ctx, &self.val)?;
             array.push(val);
         }
         Ok(Value::Array(array))
