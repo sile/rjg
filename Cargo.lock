@@ -153,6 +153,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
+name = "noargs"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64cf55508d4657f634cc0a40b190c3975e10fb3a50eb2bd088b666014c3496aa"
+
+[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -226,6 +232,7 @@ name = "rjg"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "noargs",
  "rand",
  "rand_chacha",
  "serde",
