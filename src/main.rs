@@ -2,8 +2,6 @@ use std::{collections::HashMap, io, num::NonZeroUsize, str::FromStr};
 
 use rand::{Rng, SeedableRng, seq::IndexedRandom};
 use rand_chacha::ChaChaRng;
-use serde::{Deserialize, Serialize, de::Error};
-use serde_json::Value;
 
 struct Args {
     count: NonZeroUsize,
@@ -313,8 +311,7 @@ fn oneof(prefix: &str, values: &[Value]) -> Value {
     OneofGenerator(values.to_owned()).to_json(prefix)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone)]
 struct OneofGenerator(Vec<Value>);
 
 impl OneofGenerator {
@@ -343,8 +340,7 @@ fn integer(prefix: &str, min: i64, max: i64) -> Value {
     IntegerGenerator::new(min, max).to_json(prefix)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone)]
 struct IntegerGenerator {
     min: i64,
     max: i64,
@@ -376,8 +372,7 @@ impl IntegerGenerator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone)]
 struct StringGenerator(Vec<Value>);
 
 impl StringGenerator {
@@ -394,8 +389,7 @@ impl StringGenerator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone)]
 struct ArrayGenerator {
     len: usize,
     val: Value,
@@ -412,8 +406,7 @@ impl ArrayGenerator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone)]
 struct ObjectGenerator(Vec<Option<ObjectMember>>);
 
 impl ObjectGenerator {
@@ -425,14 +418,13 @@ impl ObjectGenerator {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone)]
 struct ObjectMember {
     name: String,
     val: Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 struct OptionGenerator(Value);
 
 impl OptionGenerator {
