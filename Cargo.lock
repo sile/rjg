@@ -40,9 +40,9 @@ checksum = "28e00927e9eb7ac85489edf409d76c1b115157430622bc337762378277111f6f"
 
 [[package]]
 name = "nojson"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "527045ee82cdc43fad37cb30430457509c4c8d6dfbad9b3f923def2143e279c2"
+checksum = "7a6c9ff732ef44506baf68a5851fc47547084562c8ed441908c605e75e516000"
 
 [[package]]
 name = "ppv-lite86"
