@@ -102,10 +102,38 @@ enum StringOrVariable {
     Variable(String),
 }
 
+impl StringOrVariable {
+    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        let s = raw.to_unquoted_string_str()?;
+        if let Some(name) = s.strip_prefix(prefix) {
+            Ok(Self::Variable(name.to_owned()))
+        } else {
+            Ok(Self::String(s.into_owned()))
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 enum ObjectOrGenerator {
     Object(BTreeMap<String, ValueTemplate>),
     Generator,
+}
+
+impl ObjectOrGenerator {
+    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        if let Some((name, value)) = raw.to_object()?.next().filter(|(n, _)| {
+            n.to_unquoted_string_str()
+                .is_ok_and(|s| s.starts_with(prefix))
+        }) {
+            todo!()
+        } else {
+            Ok(Self::Object(
+                raw.to_object()?
+                    .map(|(n, v)| Ok((n.try_to()?, ValueTemplate::from_raw(v, prefix)?)))
+                    .collect::<Result<_, _>>()?,
+            ))
+        }
+    }
 }
 
 fn invalid<E>(raw: RawJsonValue<'_, '_>) -> impl FnOnce(E) -> JsonParseError
@@ -151,9 +179,13 @@ impl ValueTemplate {
             JsonValueKind::Float => Ok(Self::Float(
                 raw.as_float_str()?.parse().map_err(invalid(raw))?,
             )),
-            JsonValueKind::String => todo!(),
-            JsonValueKind::Array => todo!(),
-            JsonValueKind::Object => todo!(),
+            JsonValueKind::String => Ok(Self::String(StringOrVariable::from_raw(raw, prefix)?)),
+            JsonValueKind::Array => Ok(Self::Array(
+                raw.to_array()?
+                    .map(|v| Self::from_raw(v, prefix))
+                    .collect::<Result<_, _>>()?,
+            )),
+            JsonValueKind::Object => Ok(Self::Object(ObjectOrGenerator::from_raw(raw, prefix)?)),
         }
     }
 }
