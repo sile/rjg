@@ -116,7 +116,7 @@ impl StringOrVariable {
 #[derive(Debug, Clone)]
 enum ObjectOrGenerator {
     Object(BTreeMap<String, ValueTemplate>),
-    Generator,
+    Generator(Box<Generator2>),
 }
 
 impl ObjectOrGenerator {
@@ -125,7 +125,9 @@ impl ObjectOrGenerator {
             n.to_unquoted_string_str()
                 .is_ok_and(|s| s.starts_with(prefix))
         }) {
-            todo!()
+            Ok(Self::Generator(Box::new(Generator2::from_raw(
+                name, value, prefix,
+            )?)))
         } else {
             Ok(Self::Object(
                 raw.to_object()?
@@ -136,9 +138,57 @@ impl ObjectOrGenerator {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum Generator2 {
+    Oneof(OneofGenerator),
+    Int(IntegerGenerator),
+    Str(StringGenerator),
+    Arr(ArrayGenerator),
+    Obj(ObjectGenerator),
+    Option(OptionGenerator),
+}
+
+impl Generator2 {
+    fn from_raw(
+        name: RawJsonValue<'_, '_>,
+        value: RawJsonValue<'_, '_>,
+        prefix: &str,
+    ) -> Result<Self, JsonParseError> {
+        match name.to_unquoted_string_str()?.as_ref().strip_prefix(prefix) {
+            Some("oneof") => OneofGenerator::from_raw(value, prefix).map(Self::Oneof),
+            Some("int") => IntegerGenerator::from_raw(value).map(Self::Int),
+            Some("str") => todo!(),
+            Some("arr") => todo!(),
+            Some("obj") => todo!(),
+            Some("option") => todo!(),
+            _ => Err(invalid(name)(format!("unknown generator name: {name}"))),
+        }
+    }
+}
+
+//                     "arr" => {
+//                         ctx.quote_val = true;
+//                         let value = self.eval_json(ctx, raw_value)?;
+//                         ctx.quote_val = false;
+
+//                         let gn: ArrayGenerator = serde_json::from_value(value.clone())
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx, self)?
+//                     }
+//                     "obj" => {
+//                         let gn: ObjectGenerator = serde_json::from_value(value.clone())
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx)
+//                     }
+//                     "option" => {
+//                         let gn: OptionGenerator = serde_json::from_value(value.clone())
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx)
+//                     }
+
 fn invalid<E>(raw: RawJsonValue<'_, '_>) -> impl FnOnce(E) -> JsonParseError
 where
-    E: 'static + Send + Sync + std::error::Error,
+    E: Into<Box<dyn Send + Sync + std::error::Error>>,
 {
     let kind = raw.kind();
     let position = raw.position();
@@ -429,73 +479,50 @@ impl FromStr for Var {
     }
 }
 
-// fn oneof(prefix: &str, values: &[Value]) -> Value {
-//     OneofGenerator(values.to_owned()).to_json(prefix)
-// }
+#[derive(Debug, Clone)]
+struct OneofGenerator(Vec<ValueTemplate>);
 
-// #[derive(Debug, Clone)]
-// struct OneofGenerator(Vec<Value>);
+impl OneofGenerator {
+    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        let choices = raw
+            .to_array()?
+            .map(|v| ValueTemplate::from_raw(v, prefix))
+            .collect::<Result<Vec<_>, _>>()?;
+        if choices.is_empty() {
+            return Err(invalid(raw)("empty array"));
+        }
+        Ok(Self(choices))
+    }
 
-// impl OneofGenerator {
-//     fn to_json(&self, prefix: &str) -> Value {
-//         let mut object = serde_json::Map::new();
-//         object.insert(
-//             format!("{prefix}oneof"),
-//             serde_json::to_value(self).expect("unreachable"),
-//         );
-//         Value::Object(object)
-//     }
+    //     fn generate(&self, ctx: &mut Context) -> Value {
+    //         self.0.choose(ctx.rng).expect("unreachable").clone()
+    //     }
+}
 
-//     fn validate(self) -> Result<Self, serde_json::Error> {
-//         if self.0.is_empty() {
-//             return Err(serde_json::Error::custom("empty array"));
-//         }
-//         Ok(self)
-//     }
+#[derive(Debug, Clone)]
+struct IntegerGenerator {
+    min: i64,
+    max: i64,
+}
 
-//     fn generate(&self, ctx: &mut Context) -> Value {
-//         self.0.choose(ctx.rng).expect("unreachable").clone()
-//     }
-// }
+impl IntegerGenerator {
+    fn from_raw(raw: RawJsonValue<'_, '_>) -> Result<Self, JsonParseError> {
+        let ([min, max], []) = raw.to_fixed_object(["min", "max"], [])?;
+        let min: i64 = min.try_to()?;
+        let max: i64 = max.try_to()?;
+        if min > max {
+            return Err(invalid(raw)("empty range"));
+        }
+        Ok(Self { min, max })
+    }
 
-// fn integer(prefix: &str, min: i64, max: i64) -> Value {
-//     IntegerGenerator::new(min, max).to_json(prefix)
-// }
+    //     fn generate(&self, ctx: &mut Context) -> Value {
+    //         Value::Number(ctx.rng.random_range(self.min..=self.max).into())
+    //     }
+}
 
-// #[derive(Debug, Clone)]
-// struct IntegerGenerator {
-//     min: i64,
-//     max: i64,
-// }
-
-// impl IntegerGenerator {
-//     fn new(min: i64, max: i64) -> Self {
-//         Self { min, max }
-//     }
-
-//     fn to_json(&self, prefix: &str) -> Value {
-//         let mut object = serde_json::Map::new();
-//         object.insert(
-//             format!("{prefix}int"),
-//             serde_json::to_value(self).expect("unreachable"),
-//         );
-//         Value::Object(object)
-//     }
-
-//     fn validate(self) -> Result<Self, serde_json::Error> {
-//         if self.min > self.max {
-//             return Err(serde_json::Error::custom("empty range"));
-//         }
-//         Ok(self)
-//     }
-
-//     fn generate(&self, ctx: &mut Context) -> Value {
-//         Value::Number(ctx.rng.random_range(self.min..=self.max).into())
-//     }
-// }
-
-// #[derive(Debug, Clone)]
-// struct StringGenerator(Vec<Value>);
+#[derive(Debug, Clone)]
+struct StringGenerator(Vec<ValueTemplate>);
 
 // impl StringGenerator {
 //     fn generate(&self, _ctx: &mut Context) -> Value {
@@ -511,11 +538,11 @@ impl FromStr for Var {
 //     }
 // }
 
-// #[derive(Debug, Clone)]
-// struct ArrayGenerator {
-//     len: usize,
-//     val: Value,
-// }
+#[derive(Debug, Clone)]
+struct ArrayGenerator {
+    len: usize,
+    val: ValueTemplate,
+}
 
 // impl ArrayGenerator {
 //     fn generate(&self, ctx: &mut Context, gn: &Generator) -> Result<Value, String> {
@@ -528,8 +555,8 @@ impl FromStr for Var {
 //     }
 // }
 
-// #[derive(Debug, Clone)]
-// struct ObjectGenerator(Vec<Option<ObjectMember>>);
+#[derive(Debug, Clone)]
+struct ObjectGenerator(Vec<Option<ObjectMember>>);
 
 // impl ObjectGenerator {
 //     fn generate(&self, _ctx: &mut Context) -> Value {
@@ -540,14 +567,14 @@ impl FromStr for Var {
 //     }
 // }
 
-// #[derive(Debug, Clone)]
-// struct ObjectMember {
-//     name: String,
-//     val: Value,
-// }
+#[derive(Debug, Clone)]
+struct ObjectMember {
+    name: String,
+    val: ValueTemplate,
+}
 
-// #[derive(Debug, Clone)]
-// struct OptionGenerator(Value);
+#[derive(Debug, Clone)]
+struct OptionGenerator(ValueTemplate);
 
 // impl OptionGenerator {
 //     fn generate(&self, ctx: &mut Context) -> Value {
