@@ -1,12 +1,9 @@
 use std::{
     collections::{BTreeMap, HashMap},
     num::NonZeroUsize,
-    str::FromStr,
 };
 
-use nojson::{
-    DisplayJson, FromRawJsonValue, Json, JsonParseError, JsonValueKind, RawJson, RawJsonValue,
-};
+use nojson::{DisplayJson, Json, JsonParseError, JsonValueKind, RawJson, RawJsonValue};
 use rand::{Rng, SeedableRng, seq::IndexedRandom};
 use rand_chacha::ChaChaRng;
 
@@ -53,14 +50,25 @@ impl Args {
                 .parse_if_present()?,
             var: {
                 let mut vars = Vec::new();
-                while let Some(var) = noargs::opt("var")
-                    .short('v')
-                    .ty("NAME=JSON_TEMPLATE")
-                    .doc("User-defined variables")
-                    .take(&mut args)
-                    .parse_if_present()?
-                {
-                    vars.push(var);
+                loop {
+                    let var = noargs::opt("var")
+                        .short('v')
+                        .ty("NAME=JSON_TEMPLATE")
+                        .doc("User-defined variables")
+                        .take(&mut args);
+                    if !var.is_present() {
+                        break;
+                    }
+
+                    vars.push(var.parse_with(|v| -> Result<_, String> {
+                        let (name, value) = v
+                            .raw_value_or_empty()
+                            .split_once('=')
+                            .ok_or_else(|| "missing '='".to_owned())?;
+                        let name = name.to_owned();
+                        let value = ValueTemplate::parse(value, &prefix)?;
+                        Ok(Var { name, value })
+                    })?);
                 }
                 vars
             },
@@ -270,23 +278,6 @@ impl ValueTemplate {
     }
 }
 
-// TODO: remove
-impl<'text> FromRawJsonValue<'text> for ValueTemplate {
-    fn from_raw_json_value(
-        _value: nojson::RawJsonValue<'text, '_>,
-    ) -> Result<Self, JsonParseError> {
-        todo!()
-    }
-}
-
-impl FromStr for ValueTemplate {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse().map(|Json(v)| v).map_err(|e| e.to_string())
-    }
-}
-
 #[derive(Debug)]
 pub enum Value {
     Null,
@@ -300,26 +291,17 @@ pub enum Value {
 
 impl DisplayJson for Value {
     fn fmt(&self, f: &mut nojson::JsonFormatter<'_, '_>) -> std::fmt::Result {
-        todo!()
+        match self {
+            Value::Null => None::<()>.fmt(f),
+            Value::Boolean(v) => v.fmt(f),
+            Value::Integer(v) => v.fmt(f),
+            Value::Float(v) => v.fmt(f),
+            Value::String(v) => v.fmt(f),
+            Value::Array(v) => v.fmt(f),
+            Value::Object(v) => v.fmt(f),
+        }
     }
 }
-
-// #[derive(Debug)]
-// struct Context<'a> {
-//     rng: &'a mut ChaChaRng,
-//     eval_stack: Vec<String>,
-//     quote_val: bool,
-// }
-
-// impl<'a> Context<'a> {
-//     fn new(rng: &'a mut ChaChaRng) -> Self {
-//         Self {
-//             rng,
-//             eval_stack: Vec::new(),
-//             quote_val: false,
-//         }
-//     }
-// }
 
 #[derive(Debug)]
 pub struct Variables {
@@ -409,17 +391,6 @@ struct Var {
     value: ValueTemplate,
 }
 
-impl FromStr for Var {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (name, value) = s.split_once('=').ok_or_else(|| "missing '='".to_owned())?;
-        let name = name.to_owned();
-        let value = value.parse()?;
-        Ok(Var { name, value })
-    }
-}
-
 #[derive(Debug, Clone)]
 struct OneofGenerator(Vec<ValueTemplate>);
 
@@ -483,7 +454,7 @@ impl StringGenerator {
             match v.generate(rng, vars)? {
                 Value::Null => {}
                 Value::String(v) => s.push_str(&v),
-                v => s.push_str(&nojson::Json(v).to_string()),
+                v => s.push_str(&Json(v).to_string()),
             }
         }
         Ok(Value::String(s))
