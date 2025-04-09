@@ -109,7 +109,7 @@ fn main() -> noargs::Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum StringOrVariable {
     String(String),
     Variable(String),
@@ -133,7 +133,7 @@ impl StringOrVariable {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ObjectOrGenerator {
     Object(BTreeMap<String, ValueTemplate>),
     Generator(Box<Generator>),
@@ -169,7 +169,7 @@ impl ObjectOrGenerator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum Generator {
     Oneof(OneofGenerator),
     Int(IntegerGenerator),
@@ -221,7 +221,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ValueTemplate {
     Null,
     Boolean(bool),
@@ -385,13 +385,13 @@ impl Variables {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Var {
     name: String,
     value: ValueTemplate,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct OneofGenerator(Vec<ValueTemplate>);
 
 impl OneofGenerator {
@@ -411,7 +411,7 @@ impl OneofGenerator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct IntegerGenerator {
     min: i64,
     max: i64,
@@ -437,7 +437,7 @@ impl IntegerGenerator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct StringGenerator(Vec<ValueTemplate>);
 
 impl StringGenerator {
@@ -461,7 +461,7 @@ impl StringGenerator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct ArrayGenerator {
     len: usize,
     val: ValueTemplate,
@@ -484,7 +484,7 @@ impl ArrayGenerator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct ObjectGenerator(Vec<ObjectMemberGenerator>);
 
 impl ObjectGenerator {
@@ -504,8 +504,7 @@ impl ObjectGenerator {
     }
 }
 
-// TODO: remove clone
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ObjectMemberGenerator {
     Null,
     Member { name: String, val: ValueTemplate },
@@ -560,7 +559,7 @@ impl ObjectMemberGenerator {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct OptionGenerator(ValueTemplate);
 
 impl OptionGenerator {
