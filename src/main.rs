@@ -64,7 +64,7 @@ impl Args {
                 .doc("JSON template used to generate values")
                 .example(r#"[0, {"$int": {"min": 1, "max": 8}}, 9]"#)
                 .take(&mut args)
-                .parse_with(|a| ValueTemplate::new(a.raw_value_or_empty(), &prefix))?,
+                .parse_with(|a| ValueTemplate::parse(a.raw_value_or_empty(), &prefix))?,
         };
 
         if let Some(help) = args.finish()? {
@@ -103,7 +103,7 @@ enum StringOrVariable {
 }
 
 impl StringOrVariable {
-    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
         let s = raw.to_unquoted_string_str()?;
         if let Some(name) = s.strip_prefix(prefix) {
             Ok(Self::Variable(name.to_owned()))
@@ -120,18 +120,18 @@ enum ObjectOrGenerator {
 }
 
 impl ObjectOrGenerator {
-    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
         if let Some((name, value)) = raw.to_object()?.next().filter(|(n, _)| {
             n.to_unquoted_string_str()
                 .is_ok_and(|s| s.starts_with(prefix))
         }) {
-            Ok(Self::Generator(Box::new(Generator2::from_raw(
+            Ok(Self::Generator(Box::new(Generator2::new(
                 name, value, prefix,
             )?)))
         } else {
             Ok(Self::Object(
                 raw.to_object()?
-                    .map(|(n, v)| Ok((n.try_to()?, ValueTemplate::from_raw(v, prefix)?)))
+                    .map(|(n, v)| Ok((n.try_to()?, ValueTemplate::new(v, prefix)?)))
                     .collect::<Result<_, _>>()?,
             ))
         }
@@ -149,42 +149,22 @@ pub enum Generator2 {
 }
 
 impl Generator2 {
-    fn from_raw(
+    fn new(
         name: RawJsonValue<'_, '_>,
         value: RawJsonValue<'_, '_>,
         prefix: &str,
     ) -> Result<Self, JsonParseError> {
         match name.to_unquoted_string_str()?.as_ref().strip_prefix(prefix) {
-            Some("oneof") => OneofGenerator::from_raw(value, prefix).map(Self::Oneof),
-            Some("int") => IntegerGenerator::from_raw(value).map(Self::Int),
-            Some("str") => todo!(),
-            Some("arr") => todo!(),
-            Some("obj") => todo!(),
-            Some("option") => todo!(),
+            Some("oneof") => OneofGenerator::new(value, prefix).map(Self::Oneof),
+            Some("int") => IntegerGenerator::new(value).map(Self::Int),
+            Some("str") => StringGenerator::new(value, prefix).map(Self::Str),
+            Some("arr") => ArrayGenerator::new(value, prefix).map(Self::Arr),
+            Some("obj") => ObjectGenerator::new(value, prefix).map(Self::Obj),
+            Some("option") => OptionGenerator::new(value, prefix).map(Self::Option),
             _ => Err(invalid(name)(format!("unknown generator name: {name}"))),
         }
     }
 }
-
-//                     "arr" => {
-//                         ctx.quote_val = true;
-//                         let value = self.eval_json(ctx, raw_value)?;
-//                         ctx.quote_val = false;
-
-//                         let gn: ArrayGenerator = serde_json::from_value(value.clone())
-//                             .map_err(invalid_generator_error)?;
-//                         gn.generate(ctx, self)?
-//                     }
-//                     "obj" => {
-//                         let gn: ObjectGenerator = serde_json::from_value(value.clone())
-//                             .map_err(invalid_generator_error)?;
-//                         gn.generate(ctx)
-//                     }
-//                     "option" => {
-//                         let gn: OptionGenerator = serde_json::from_value(value.clone())
-//                             .map_err(invalid_generator_error)?;
-//                         gn.generate(ctx)
-//                     }
 
 fn invalid<E>(raw: RawJsonValue<'_, '_>) -> impl FnOnce(E) -> JsonParseError
 where
@@ -211,13 +191,13 @@ enum ValueTemplate {
 }
 
 impl ValueTemplate {
-    fn new(text: &str, prefix: &str) -> Result<Self, String> {
+    fn parse(text: &str, prefix: &str) -> Result<Self, String> {
         let json = RawJson::parse(text).map_err(|e| e.to_string())?;
         let raw = json.value();
-        Self::from_raw(raw, prefix).map_err(|e| e.to_string())
+        Self::new(raw, prefix).map_err(|e| e.to_string())
     }
 
-    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
         match raw.kind() {
             JsonValueKind::Null => Ok(Self::Null),
             JsonValueKind::Boolean => Ok(Self::Boolean(
@@ -229,13 +209,13 @@ impl ValueTemplate {
             JsonValueKind::Float => Ok(Self::Float(
                 raw.as_float_str()?.parse().map_err(invalid(raw))?,
             )),
-            JsonValueKind::String => Ok(Self::String(StringOrVariable::from_raw(raw, prefix)?)),
+            JsonValueKind::String => Ok(Self::String(StringOrVariable::new(raw, prefix)?)),
             JsonValueKind::Array => Ok(Self::Array(
                 raw.to_array()?
-                    .map(|v| Self::from_raw(v, prefix))
+                    .map(|v| Self::new(v, prefix))
                     .collect::<Result<_, _>>()?,
             )),
-            JsonValueKind::Object => Ok(Self::Object(ObjectOrGenerator::from_raw(raw, prefix)?)),
+            JsonValueKind::Object => Ok(Self::Object(ObjectOrGenerator::new(raw, prefix)?)),
         }
     }
 }
@@ -483,10 +463,10 @@ impl FromStr for Var {
 struct OneofGenerator(Vec<ValueTemplate>);
 
 impl OneofGenerator {
-    fn from_raw(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
         let choices = raw
             .to_array()?
-            .map(|v| ValueTemplate::from_raw(v, prefix))
+            .map(|v| ValueTemplate::new(v, prefix))
             .collect::<Result<Vec<_>, _>>()?;
         if choices.is_empty() {
             return Err(invalid(raw)("empty array"));
@@ -506,7 +486,7 @@ struct IntegerGenerator {
 }
 
 impl IntegerGenerator {
-    fn from_raw(raw: RawJsonValue<'_, '_>) -> Result<Self, JsonParseError> {
+    fn new(raw: RawJsonValue<'_, '_>) -> Result<Self, JsonParseError> {
         let ([min, max], []) = raw.to_fixed_object(["min", "max"], [])?;
         let min: i64 = min.try_to()?;
         let max: i64 = max.try_to()?;
@@ -524,19 +504,26 @@ impl IntegerGenerator {
 #[derive(Debug, Clone)]
 struct StringGenerator(Vec<ValueTemplate>);
 
-// impl StringGenerator {
-//     fn generate(&self, _ctx: &mut Context) -> Value {
-//         let mut s = String::new();
-//         for v in &self.0 {
-//             match v {
-//                 Value::Null => {}
-//                 Value::String(v) => s.push_str(v),
-//                 _ => s.push_str(&v.to_string()),
-//             }
-//         }
-//         Value::String(s)
-//     }
-// }
+impl StringGenerator {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        raw.to_array()?
+            .map(|v| ValueTemplate::new(v, prefix))
+            .collect::<Result<_, _>>()
+            .map(Self)
+    }
+
+    //     fn generate(&self, _ctx: &mut Context) -> Value {
+    //         let mut s = String::new();
+    //         for v in &self.0 {
+    //             match v {
+    //                 Value::Null => {}
+    //                 Value::String(v) => s.push_str(v),
+    //                 _ => s.push_str(&v.to_string()),
+    //             }
+    //         }
+    //         Value::String(s)
+    //     }
+}
 
 #[derive(Debug, Clone)]
 struct ArrayGenerator {
@@ -544,44 +531,84 @@ struct ArrayGenerator {
     val: ValueTemplate,
 }
 
-// impl ArrayGenerator {
-//     fn generate(&self, ctx: &mut Context, gn: &Generator) -> Result<Value, String> {
-//         let mut array = Vec::new();
-//         for _ in 0..self.len {
-//             let val = gn.eval_json(ctx, &self.val)?;
-//             array.push(val);
-//         }
-//         Ok(Value::Array(array))
-//     }
-// }
+impl ArrayGenerator {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        let ([len, val], []) = raw.to_fixed_object(["len", "val"], [])?;
+        Ok(Self {
+            len: len.try_to()?,
+            val: ValueTemplate::new(raw, prefix)?,
+        })
+    }
+
+    //     fn generate(&self, ctx: &mut Context, gn: &Generator) -> Result<Value, String> {
+    //         let mut array = Vec::new();
+    //         for _ in 0..self.len {
+    //             let val = gn.eval_json(ctx, &self.val)?;
+    //             array.push(val);
+    //         }
+    //         Ok(Value::Array(array))
+    //     }
+}
 
 #[derive(Debug, Clone)]
-struct ObjectGenerator(Vec<Option<ObjectMember>>);
+struct ObjectGenerator(Vec<ObjectMemberGenerator>);
 
-// impl ObjectGenerator {
-//     fn generate(&self, _ctx: &mut Context) -> Value {
-//         self.0
-//             .iter()
-//             .filter_map(|m| m.as_ref().map(|m| (m.name.clone(), m.val.clone())))
-//             .collect()
-//     }
-// }
+impl ObjectGenerator {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        raw.to_array()?
+            .map(|v| ObjectMemberGenerator::new(v, prefix))
+            .collect::<Result<_, _>>()
+            .map(Self)
+    }
 
+    //     fn generate(&self, _ctx: &mut Context) -> Value {
+    //         self.0
+    //             .iter()
+    //             .filter_map(|m| m.as_ref().map(|m| (m.name.clone(), m.val.clone())))
+    //             .collect()
+    //     }
+}
+
+// TODO: remove clone
 #[derive(Debug, Clone)]
-struct ObjectMember {
-    name: String,
-    val: ValueTemplate,
+enum ObjectMemberGenerator {
+    Null,
+    Member { name: String, val: ValueTemplate },
+    Generator { gn: Generator2 },
+}
+
+impl ObjectMemberGenerator {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        if raw.kind().is_null() {
+            Ok(Self::Null)
+        } else if let Ok(([name, val], [])) = raw.to_fixed_object(["name", "val"], []) {
+            Ok(Self::Member {
+                name: name.try_to()?,
+                val: ValueTemplate::new(raw, prefix)?,
+            })
+        } else if let Some((name, value)) = raw.to_object()?.next() {
+            Ok(Self::Generator {
+                gn: Generator2::new(name, value, prefix)?,
+            })
+        } else {
+            Err(invalid(raw)("empty object"))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 struct OptionGenerator(ValueTemplate);
 
-// impl OptionGenerator {
-//     fn generate(&self, ctx: &mut Context) -> Value {
-//         if ctx.rng.random_bool(0.5) {
-//             self.0.clone()
-//         } else {
-//             Value::Null
-//         }
-//     }
-// }
+impl OptionGenerator {
+    fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
+        ValueTemplate::new(raw, prefix).map(Self)
+    }
+
+    //     fn generate(&self, ctx: &mut Context) -> Value {
+    //         if ctx.rng.random_bool(0.5) {
+    //             self.0.clone()
+    //         } else {
+    //             Value::Null
+    //         }
+    //     }
+}
