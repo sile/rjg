@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
+use std::{
+    collections::{BTreeMap, HashMap},
+    num::NonZeroUsize,
+    str::FromStr,
+};
 
 use nojson::{
     DisplayJson, FromRawJsonValue, Json, JsonParseError, JsonValueKind, RawJson, RawJsonValue,
@@ -77,13 +81,14 @@ impl Args {
 }
 
 fn main() -> noargs::Result<()> {
-    let Some(args) = Args::parse()? else {
+    let Some(mut args) = Args::parse()? else {
         return Ok(());
     };
-    let mut generator = Generator::new(&args);
+    let mut vars = Variables::new(&mut args);
     let mut rng = ChaChaRng::seed_from_u64(args.seed.unwrap_or_else(rand::random));
     for i in 0..args.count.get() {
-        match generator.generate(&mut rng, i, &args.json_template) {
+        vars.index = i;
+        match args.json_template.generate(&mut rng, &vars) {
             Ok(value) => {
                 println!("{}", Json(value));
             }
@@ -116,7 +121,7 @@ impl StringOrVariable {
 #[derive(Debug, Clone)]
 enum ObjectOrGenerator {
     Object(BTreeMap<String, ValueTemplate>),
-    Generator(Box<Generator2>),
+    Generator(Box<Generator>),
 }
 
 impl ObjectOrGenerator {
@@ -125,7 +130,7 @@ impl ObjectOrGenerator {
             n.to_unquoted_string_str()
                 .is_ok_and(|s| s.starts_with(prefix))
         }) {
-            Ok(Self::Generator(Box::new(Generator2::new(
+            Ok(Self::Generator(Box::new(Generator::new(
                 name, value, prefix,
             )?)))
         } else {
@@ -139,7 +144,7 @@ impl ObjectOrGenerator {
 }
 
 #[derive(Debug, Clone)]
-pub enum Generator2 {
+pub enum Generator {
     Oneof(OneofGenerator),
     Int(IntegerGenerator),
     Str(StringGenerator),
@@ -148,7 +153,7 @@ pub enum Generator2 {
     Option(OptionGenerator),
 }
 
-impl Generator2 {
+impl Generator {
     fn new(
         name: RawJsonValue<'_, '_>,
         value: RawJsonValue<'_, '_>,
@@ -218,6 +223,10 @@ impl ValueTemplate {
             JsonValueKind::Object => Ok(Self::Object(ObjectOrGenerator::new(raw, prefix)?)),
         }
     }
+
+    fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
+        todo!()
+    }
 }
 
 // TODO: remove
@@ -264,170 +273,180 @@ impl DisplayJson for Value {
 // }
 
 #[derive(Debug)]
-pub struct Generator {
-    // prefix: String,
-    // predefined_vars: HashMap<String, Value>,
-    // vars: HashMap<String, Value>,
+pub struct Variables {
+    vars: HashMap<String, ValueTemplate>,
+    index: usize,
 }
 
-impl Generator {
-    fn new(args: &Args) -> Self {
-        // let prefix = &args.prefix;
-        // let mut predefined_vars = [
-        //     ("u8", integer(prefix, 0, u8::MAX as i64)),
-        //     ("u16", integer(prefix, 0, u16::MAX as i64)),
-        //     ("u32", integer(prefix, 0, u32::MAX as i64)),
-        //     ("i8", integer(prefix, i8::MIN as i64, i8::MAX as i64)),
-        //     ("i16", integer(prefix, i16::MIN as i64, i16::MAX as i64)),
-        //     ("i32", integer(prefix, i32::MIN as i64, i32::MAX as i64)),
-        //     ("i64", integer(prefix, i64::MIN, i64::MAX)),
-        //     ("digit", integer(prefix, 0, 9)),
-        //     ("bool", oneof(prefix, &[Value::Bool(true), false.into()])),
-        //     (
-        //         "alpha",
-        //         oneof(
-        //             prefix,
-        //             &"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        //                 .chars()
-        //                 .map(|c| Value::String(c.to_string()))
-        //                 .collect::<Vec<_>>(),
-        //         ),
-        //     ),
-        // ]
-        // .into_iter()
-        // .map(|(k, v)| (format!("{}{k}", args.prefix), v))
-        // .collect::<HashMap<_, _>>();
-        // for var in &args.var {
-        //     predefined_vars.insert(format!("{}{}", args.prefix, var.name), var.value.clone());
-        // }
-        // Self {
-        //     prefix: args.prefix.clone(),
-        //     predefined_vars,
-        //     vars: HashMap::new(),
-        // }
-        todo!()
+impl Variables {
+    fn new(args: &mut Args) -> Self {
+        let predefined = [
+            (
+                "u8",
+                Generator::Int(IntegerGenerator::min_max(0, u8::MAX as i64)),
+            ),
+            (
+                "u16",
+                Generator::Int(IntegerGenerator::min_max(0, u16::MAX as i64)),
+            ),
+            (
+                "u32",
+                Generator::Int(IntegerGenerator::min_max(0, u32::MAX as i64)),
+            ),
+            (
+                "i8",
+                Generator::Int(IntegerGenerator::min_max(i8::MIN as i64, i8::MAX as i64)),
+            ),
+            (
+                "i16",
+                Generator::Int(IntegerGenerator::min_max(i16::MIN as i64, i16::MAX as i64)),
+            ),
+            (
+                "i32",
+                Generator::Int(IntegerGenerator::min_max(i32::MIN as i64, i32::MAX as i64)),
+            ),
+            (
+                "i64",
+                Generator::Int(IntegerGenerator::min_max(i64::MIN, i64::MAX)),
+            ),
+            ("digit", Generator::Int(IntegerGenerator::min_max(0, 9))),
+            (
+                "bool",
+                Generator::Oneof(OneofGenerator(vec![
+                    ValueTemplate::Boolean(true),
+                    ValueTemplate::Boolean(false),
+                ])),
+            ),
+            (
+                "alpha",
+                Generator::Oneof(OneofGenerator(
+                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                        .chars()
+                        .map(|c| ValueTemplate::String(StringOrVariable::String(c.to_string())))
+                        .collect(),
+                )),
+            ),
+        ];
+        let mut vars = predefined
+            .into_iter()
+            .map(|(name, gn)| {
+                (
+                    name.to_owned(),
+                    ValueTemplate::Object(ObjectOrGenerator::Generator(Box::new(gn))),
+                )
+            })
+            .chain(args.var.drain(..).map(|v| (v.name, v.value)))
+            .collect::<HashMap<_, _>>();
+        Self { vars, index: 0 }
     }
-
-    fn generate(
-        &mut self,
-        rng: &mut ChaChaRng,
-        i: usize,
-        json: &ValueTemplate,
-    ) -> Result<Value, String> {
-        // let mut ctx = Context::new(rng);
-        // self.predefined_vars
-        //     .insert(format!("{}i", self.prefix), Value::Number(i.into()));
-        // self.vars = self.predefined_vars.clone();
-        // self.eval_json(&mut ctx, json)
-        todo!()
-    }
-
-    //     fn eval_json(&self, ctx: &mut Context, json: &Value) -> Result<Value, String> {
-    //         match json {
-    //             Value::Null => Ok(Value::Null),
-    //             Value::Bool(v) => Ok(Value::Bool(*v)),
-    //             Value::Number(v) => Ok(Value::Number(v.clone())),
-    //             Value::String(v) => self.eval_string(ctx, v),
-    //             Value::Array(vs) => vs.iter().map(|v| self.eval_json(ctx, v)).collect(),
-    //             Value::Object(vs) => self.eval_object(ctx, vs),
-    //         }
-    //     }
-
-    //     fn eval_object(
-    //         &self,
-    //         ctx: &mut Context,
-    //         object: &serde_json::Map<String, Value>,
-    //     ) -> Result<Value, String> {
-    //         if object.len() == 1 {
-    //             let (key, raw_value) = object.iter().next().expect("unreachable");
-    //             let value = self.eval_json(ctx, raw_value)?;
-    //             let invalid_generator_error =
-    //                 |e| format!("invalid generator: {{{key:?}: {value}}} ({e})");
-    //             if key.starts_with(&self.prefix) {
-    //                 let value = match &key[self.prefix.len()..] {
-    //                     "oneof" => {
-    //                         let gn: OneofGenerator = serde_json::from_value(value.clone())
-    //                             .and_then(OneofGenerator::validate)
-    //                             .map_err(invalid_generator_error)?;
-    //                         gn.generate(ctx)
-    //                     }
-    //                     "int" => {
-    //                         let gn: IntegerGenerator = serde_json::from_value(value.clone())
-    //                             .and_then(IntegerGenerator::validate)
-    //                             .map_err(invalid_generator_error)?;
-    //                         gn.generate(ctx)
-    //                     }
-    //                     "str" => {
-    //                         let gn: StringGenerator = serde_json::from_value(value.clone())
-    //                             .map_err(invalid_generator_error)?;
-    //                         gn.generate(ctx)
-    //                     }
-    //                     "arr" => {
-    //                         ctx.quote_val = true;
-    //                         let value = self.eval_json(ctx, raw_value)?;
-    //                         ctx.quote_val = false;
-
-    //                         let gn: ArrayGenerator = serde_json::from_value(value.clone())
-    //                             .map_err(invalid_generator_error)?;
-    //                         gn.generate(ctx, self)?
-    //                     }
-    //                     "obj" => {
-    //                         let gn: ObjectGenerator = serde_json::from_value(value.clone())
-    //                             .map_err(invalid_generator_error)?;
-    //                         gn.generate(ctx)
-    //                     }
-    //                     "option" => {
-    //                         let gn: OptionGenerator = serde_json::from_value(value.clone())
-    //                             .map_err(invalid_generator_error)?;
-    //                         gn.generate(ctx)
-    //                     }
-    //                     _ => return Err(format!("unknown generator: {key:?}")),
-    //                 };
-    //                 return Ok(value);
-    //             }
-    //         }
-
-    //         let quote_val = std::mem::take(&mut ctx.quote_val);
-    //         object
-    //             .iter()
-    //             .map(|(k, v)| {
-    //                 if quote_val && k == "val" {
-    //                     Ok((k, v.clone()))
-    //                 } else {
-    //                     Ok((k, self.eval_json(ctx, v)?))
-    //                 }
-    //             })
-    //             .collect()
-    //     }
-
-    //     fn eval_string(&self, ctx: &mut Context, s: &str) -> Result<Value, String> {
-    //         if !s.starts_with(&self.prefix) {
-    //             return Ok(Value::String(s.to_owned()));
-    //         }
-
-    //         self.resolve_var(ctx, s)
-    //     }
-
-    //     fn resolve_var(&self, ctx: &mut Context, name: &str) -> Result<Value, String> {
-    //         let name = name.to_owned();
-    //         if ctx.eval_stack.contains(&name) {
-    //             ctx.eval_stack.push(name);
-    //             return Err(format!(
-    //                 "circular reference: {}",
-    //                 ctx.eval_stack.join(" -> ")
-    //             ));
-    //         }
-    //         ctx.eval_stack.push(name.clone());
-
-    //         let value = self
-    //             .vars
-    //             .get(&name)
-    //             .ok_or_else(|| format!("undefined variable: {name:?}"))?;
-    //         let value = self.eval_json(ctx, value)?;
-    //         ctx.eval_stack.pop();
-    //         Ok(value)
-    //     }
 }
+
+// TODO: delete
+//     fn eval_json(&self, ctx: &mut Context, json: &Value) -> Result<Value, String> {
+//         match json {
+//             Value::Null => Ok(Value::Null),
+//             Value::Bool(v) => Ok(Value::Bool(*v)),
+//             Value::Number(v) => Ok(Value::Number(v.clone())),
+//             Value::String(v) => self.eval_string(ctx, v),
+//             Value::Array(vs) => vs.iter().map(|v| self.eval_json(ctx, v)).collect(),
+//             Value::Object(vs) => self.eval_object(ctx, vs),
+//         }
+//     }
+
+//     fn eval_object(
+//         &self,
+//         ctx: &mut Context,
+//         object: &serde_json::Map<String, Value>,
+//     ) -> Result<Value, String> {
+//         if object.len() == 1 {
+//             let (key, raw_value) = object.iter().next().expect("unreachable");
+//             let value = self.eval_json(ctx, raw_value)?;
+//             let invalid_generator_error =
+//                 |e| format!("invalid generator: {{{key:?}: {value}}} ({e})");
+//             if key.starts_with(&self.prefix) {
+//                 let value = match &key[self.prefix.len()..] {
+//                     "oneof" => {
+//                         let gn: OneofGenerator = serde_json::from_value(value.clone())
+//                             .and_then(OneofGenerator::validate)
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx)
+//                     }
+//                     "int" => {
+//                         let gn: IntegerGenerator = serde_json::from_value(value.clone())
+//                             .and_then(IntegerGenerator::validate)
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx)
+//                     }
+//                     "str" => {
+//                         let gn: StringGenerator = serde_json::from_value(value.clone())
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx)
+//                     }
+//                     "arr" => {
+//                         ctx.quote_val = true;
+//                         let value = self.eval_json(ctx, raw_value)?;
+//                         ctx.quote_val = false;
+
+//                         let gn: ArrayGenerator = serde_json::from_value(value.clone())
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx, self)?
+//                     }
+//                     "obj" => {
+//                         let gn: ObjectGenerator = serde_json::from_value(value.clone())
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx)
+//                     }
+//                     "option" => {
+//                         let gn: OptionGenerator = serde_json::from_value(value.clone())
+//                             .map_err(invalid_generator_error)?;
+//                         gn.generate(ctx)
+//                     }
+//                     _ => return Err(format!("unknown generator: {key:?}")),
+//                 };
+//                 return Ok(value);
+//             }
+//         }
+
+//         let quote_val = std::mem::take(&mut ctx.quote_val);
+//         object
+//             .iter()
+//             .map(|(k, v)| {
+//                 if quote_val && k == "val" {
+//                     Ok((k, v.clone()))
+//                 } else {
+//                     Ok((k, self.eval_json(ctx, v)?))
+//                 }
+//             })
+//             .collect()
+//     }
+
+//     fn eval_string(&self, ctx: &mut Context, s: &str) -> Result<Value, String> {
+//         if !s.starts_with(&self.prefix) {
+//             return Ok(Value::String(s.to_owned()));
+//         }
+
+//         self.resolve_var(ctx, s)
+//     }
+
+//     fn resolve_var(&self, ctx: &mut Context, name: &str) -> Result<Value, String> {
+//         let name = name.to_owned();
+//         if ctx.eval_stack.contains(&name) {
+//             ctx.eval_stack.push(name);
+//             return Err(format!(
+//                 "circular reference: {}",
+//                 ctx.eval_stack.join(" -> ")
+//             ));
+//         }
+//         ctx.eval_stack.push(name.clone());
+
+//         let value = self
+//             .vars
+//             .get(&name)
+//             .ok_or_else(|| format!("undefined variable: {name:?}"))?;
+//         let value = self.eval_json(ctx, value)?;
+//         ctx.eval_stack.pop();
+//         Ok(value)
+//     }
 
 // #[derive(Debug, Clone)]
 // struct Json(Value);
@@ -486,6 +505,10 @@ struct IntegerGenerator {
 }
 
 impl IntegerGenerator {
+    fn min_max(min: i64, max: i64) -> Self {
+        Self { min, max }
+    }
+
     fn new(raw: RawJsonValue<'_, '_>) -> Result<Self, JsonParseError> {
         let ([min, max], []) = raw.to_fixed_object(["min", "max"], [])?;
         let min: i64 = min.try_to()?;
@@ -574,7 +597,7 @@ impl ObjectGenerator {
 enum ObjectMemberGenerator {
     Null,
     Member { name: String, val: ValueTemplate },
-    Generator { gn: Generator2 },
+    Generator { gn: Generator },
 }
 
 impl ObjectMemberGenerator {
@@ -588,7 +611,7 @@ impl ObjectMemberGenerator {
             })
         } else if let Some((name, value)) = raw.to_object()?.next() {
             Ok(Self::Generator {
-                gn: Generator2::new(name, value, prefix)?,
+                gn: Generator::new(name, value, prefix)?,
             })
         } else {
             Err(invalid(raw)("empty object"))
