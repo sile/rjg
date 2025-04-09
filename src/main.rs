@@ -7,7 +7,7 @@ use std::{
 use nojson::{
     DisplayJson, FromRawJsonValue, Json, JsonParseError, JsonValueKind, RawJson, RawJsonValue,
 };
-use rand::{SeedableRng, seq::IndexedRandom};
+use rand::{Rng, SeedableRng, seq::IndexedRandom};
 use rand_chacha::ChaChaRng;
 
 struct Args {
@@ -162,7 +162,7 @@ impl ObjectOrGenerator {
 }
 
 #[derive(Debug, Clone)]
-pub enum Generator {
+enum Generator {
     Oneof(OneofGenerator),
     Int(IntegerGenerator),
     Str(StringGenerator),
@@ -191,11 +191,11 @@ impl Generator {
     fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
         match self {
             Generator::Oneof(gn) => gn.generate(rng, vars),
-            Generator::Int(gn) => todo!(),
-            Generator::Str(gn) => todo!(),
-            Generator::Arr(gn) => todo!(),
-            Generator::Obj(gn) => todo!(),
-            Generator::Option(gn) => todo!(),
+            Generator::Int(gn) => gn.generate(rng, vars),
+            Generator::Str(gn) => gn.generate(rng, vars),
+            Generator::Arr(gn) => gn.generate(rng, vars),
+            Generator::Obj(gn) => gn.generate(rng, vars),
+            Generator::Option(gn) => gn.generate(rng, vars),
         }
     }
 }
@@ -461,9 +461,9 @@ impl IntegerGenerator {
         Ok(Self { min, max })
     }
 
-    //     fn generate(&self, ctx: &mut Context) -> Value {
-    //         Value::Number(ctx.rng.random_range(self.min..=self.max).into())
-    //     }
+    fn generate(&self, rng: &mut ChaChaRng, _vars: &Variables) -> Result<Value, String> {
+        Ok(Value::Integer(rng.random_range(self.min..=self.max)))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -477,17 +477,17 @@ impl StringGenerator {
             .map(Self)
     }
 
-    //     fn generate(&self, _ctx: &mut Context) -> Value {
-    //         let mut s = String::new();
-    //         for v in &self.0 {
-    //             match v {
-    //                 Value::Null => {}
-    //                 Value::String(v) => s.push_str(v),
-    //                 _ => s.push_str(&v.to_string()),
-    //             }
-    //         }
-    //         Value::String(s)
-    //     }
+    fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
+        let mut s = String::new();
+        for v in &self.0 {
+            match v.generate(rng, vars)? {
+                Value::Null => {}
+                Value::String(v) => s.push_str(&v),
+                v => s.push_str(&nojson::Json(v).to_string()),
+            }
+        }
+        Ok(Value::String(s))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -501,18 +501,16 @@ impl ArrayGenerator {
         let ([len, val], []) = raw.to_fixed_object(["len", "val"], [])?;
         Ok(Self {
             len: len.try_to()?,
-            val: ValueTemplate::new(raw, prefix)?,
+            val: ValueTemplate::new(val, prefix)?,
         })
     }
 
-    //     fn generate(&self, ctx: &mut Context, gn: &Generator) -> Result<Value, String> {
-    //         let mut array = Vec::new();
-    //         for _ in 0..self.len {
-    //             let val = gn.eval_json(ctx, &self.val)?;
-    //             array.push(val);
-    //         }
-    //         Ok(Value::Array(array))
-    //     }
+    fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
+        (0..self.len)
+            .map(|_| self.val.generate(rng, vars))
+            .collect::<Result<_, _>>()
+            .map(Value::Array)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -526,12 +524,13 @@ impl ObjectGenerator {
             .map(Self)
     }
 
-    //     fn generate(&self, _ctx: &mut Context) -> Value {
-    //         self.0
-    //             .iter()
-    //             .filter_map(|m| m.as_ref().map(|m| (m.name.clone(), m.val.clone())))
-    //             .collect()
-    //     }
+    fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
+        self.0
+            .iter()
+            .filter_map(|v| v.generate(rng, vars).transpose())
+            .collect::<Result<_, _>>()
+            .map(Value::Object)
+    }
 }
 
 // TODO: remove clone
@@ -549,7 +548,7 @@ impl ObjectMemberGenerator {
         } else if let Ok(([name, val], [])) = raw.to_fixed_object(["name", "val"], []) {
             Ok(Self::Member {
                 name: name.try_to()?,
-                val: ValueTemplate::new(raw, prefix)?,
+                val: ValueTemplate::new(val, prefix)?,
             })
         } else if let Some((name, value)) = raw.to_object()?.next() {
             Ok(Self::Generator {
@@ -557,6 +556,35 @@ impl ObjectMemberGenerator {
             })
         } else {
             Err(invalid(raw)("empty object"))
+        }
+    }
+
+    fn generate(
+        &self,
+        rng: &mut ChaChaRng,
+        vars: &Variables,
+    ) -> Result<Option<(String, Value)>, String> {
+        match self {
+            ObjectMemberGenerator::Null => Ok(None),
+            ObjectMemberGenerator::Member { name, val } => {
+                Ok(Some((name.clone(), val.generate(rng, vars)?)))
+            }
+            ObjectMemberGenerator::Generator { gn } => {
+                let v = gn.generate(rng, vars)?;
+                let Value::Object(mut v) = v else {
+                    return Err(format!("not object: {}", Json(v)));
+                };
+                let name = v
+                    .remove("name")
+                    .ok_or_else(|| format!("'name' member not found: {}", Json(&v)))?;
+                let value = v
+                    .remove("val")
+                    .ok_or_else(|| format!("'val' member not found: {}", Json(&v)))?;
+                let Value::String(name) = name else {
+                    return Err(format!("'name' is not a string: {}", Json(&name)));
+                };
+                Ok(Some((name, value)))
+            }
         }
     }
 }
@@ -569,11 +597,11 @@ impl OptionGenerator {
         ValueTemplate::new(raw, prefix).map(Self)
     }
 
-    //     fn generate(&self, ctx: &mut Context) -> Value {
-    //         if ctx.rng.random_bool(0.5) {
-    //             self.0.clone()
-    //         } else {
-    //             Value::Null
-    //         }
-    //     }
+    fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
+        if rng.random_bool(0.5) {
+            self.0.generate(rng, vars)
+        } else {
+            Ok(Value::Null)
+        }
+    }
 }
