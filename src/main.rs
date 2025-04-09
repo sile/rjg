@@ -87,7 +87,7 @@ fn main() -> noargs::Result<()> {
     let mut vars = Variables::new(&mut args);
     let mut rng = ChaChaRng::seed_from_u64(args.seed.unwrap_or_else(rand::random));
     for i in 0..args.count.get() {
-        vars.index = i;
+        vars.index = ValueTemplate::Integer(i as i64);
         match args.json_template.generate(&mut rng, &vars) {
             Ok(value) => {
                 println!("{}", Json(value));
@@ -116,6 +116,13 @@ impl StringOrVariable {
             Ok(Self::String(s.into_owned()))
         }
     }
+
+    fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
+        match self {
+            StringOrVariable::String(v) => Ok(Value::String(v.clone())),
+            StringOrVariable::Variable(name) => vars.get(name)?.generate(rng, vars),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -139,6 +146,17 @@ impl ObjectOrGenerator {
                     .map(|(n, v)| Ok((n.try_to()?, ValueTemplate::new(v, prefix)?)))
                     .collect::<Result<_, _>>()?,
             ))
+        }
+    }
+
+    fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
+        match self {
+            ObjectOrGenerator::Object(v) => v
+                .iter()
+                .map(|(name, value)| Ok((name.clone(), value.generate(rng, vars)?)))
+                .collect::<Result<_, _>>()
+                .map(Value::Object),
+            ObjectOrGenerator::Generator(generator) => todo!(),
         }
     }
 }
@@ -225,7 +243,19 @@ impl ValueTemplate {
     }
 
     fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
-        todo!()
+        match self {
+            ValueTemplate::Null => Ok(Value::Null),
+            ValueTemplate::Boolean(v) => Ok(Value::Boolean(*v)),
+            ValueTemplate::Integer(v) => Ok(Value::Integer(*v)),
+            ValueTemplate::Float(v) => Ok(Value::Float(*v)),
+            ValueTemplate::String(v) => v.generate(rng, vars),
+            ValueTemplate::Array(v) => v
+                .iter()
+                .map(|v| v.generate(rng, vars))
+                .collect::<Result<_, _>>()
+                .map(Value::Array),
+            ValueTemplate::Object(v) => v.generate(rng, vars),
+        }
     }
 }
 
@@ -247,7 +277,15 @@ impl FromStr for ValueTemplate {
 }
 
 #[derive(Debug)]
-pub struct Value {}
+pub enum Value {
+    Null,
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
+    String(String),
+    Array(Vec<Value>),
+    Object(BTreeMap<String, Value>),
+}
 
 impl DisplayJson for Value {
     fn fmt(&self, f: &mut nojson::JsonFormatter<'_, '_>) -> std::fmt::Result {
@@ -275,7 +313,7 @@ impl DisplayJson for Value {
 #[derive(Debug)]
 pub struct Variables {
     vars: HashMap<String, ValueTemplate>,
-    index: usize,
+    index: ValueTemplate,
 }
 
 impl Variables {
@@ -327,7 +365,7 @@ impl Variables {
                 )),
             ),
         ];
-        let mut vars = predefined
+        let vars = predefined
             .into_iter()
             .map(|(name, gn)| {
                 (
@@ -337,7 +375,20 @@ impl Variables {
             })
             .chain(args.var.drain(..).map(|v| (v.name, v.value)))
             .collect::<HashMap<_, _>>();
-        Self { vars, index: 0 }
+        Self {
+            vars,
+            index: ValueTemplate::Integer(0),
+        }
+    }
+
+    fn get(&self, name: &str) -> Result<&ValueTemplate, String> {
+        if name == "i" {
+            Ok(&self.index)
+        } else {
+            self.vars
+                .get(name)
+                .ok_or_else(|| format!("unknown variable: {name}"))
+        }
     }
 }
 
