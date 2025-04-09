@@ -48,19 +48,14 @@ impl Args {
                 .doc("Seed for the random number generator")
                 .take(&mut args)
                 .parse_if_present()?,
-            var: {
-                let mut vars = Vec::new();
-                loop {
-                    let var = noargs::opt("var")
-                        .short('v')
-                        .ty("NAME=JSON_TEMPLATE")
-                        .doc("User-defined variables")
-                        .take(&mut args);
-                    if !var.is_present() {
-                        break;
-                    }
-
-                    vars.push(var.parse_with(|v| -> Result<_, String> {
+            var: std::iter::from_fn(|| {
+                let var = noargs::opt("var")
+                    .short('v')
+                    .ty("NAME=JSON_TEMPLATE")
+                    .doc("User-defined variables")
+                    .take(&mut args);
+                var.is_present().then(|| {
+                    var.parse_with(|v| -> Result<_, String> {
                         let (name, value) = v
                             .raw_value_or_empty()
                             .split_once('=')
@@ -68,10 +63,10 @@ impl Args {
                         let name = name.to_owned();
                         let value = ValueTemplate::parse(value, &prefix)?;
                         Ok(Var { name, value })
-                    })?);
-                }
-                vars
-            },
+                    })
+                })
+            })
+            .collect::<Result<_, _>>()?,
             json_template: noargs::arg("JSON_TEMPLATE")
                 .doc("JSON template used to generate values")
                 .example(r#"[0, {"$int": {"min": 1, "max": 8}}, 9]"#)
