@@ -55,8 +55,7 @@ impl Args {
                     .doc("User-defined variables")
                     .take(&mut args)
                     .present_and_then(|var| -> Result<_, String> {
-                        let (name, value) =
-                            var.value().split_once('=').ok_or_else(|| "missing '='")?;
+                        let (name, value) = var.value().split_once('=').ok_or("missing '='")?;
                         let name = name.to_owned();
                         let value = ValueTemplate::parse(value, &prefix)?;
                         Ok(Var { name, value })
