@@ -32,7 +32,7 @@ impl Args {
             .default("$")
             .doc("Prefix for variable and generator names")
             .take(&mut args)
-            .parse()?;
+            .then(|a| a.value().parse())?;
 
         let this = Self {
             count: noargs::opt("count")
@@ -41,37 +41,34 @@ impl Args {
                 .default("1")
                 .doc("Number of JSON values to generate")
                 .take(&mut args)
-                .parse()?,
+                .then(|a| a.value().parse())?,
             seed: noargs::opt("seed")
                 .short('s')
                 .ty("INTEGER")
                 .doc("Seed for the random number generator")
                 .take(&mut args)
-                .parse_if_present()?,
+                .present_and_then(|a| a.value().parse())?,
             var: std::iter::from_fn(|| {
-                let var = noargs::opt("var")
+                noargs::opt("var")
                     .short('v')
                     .ty("NAME=JSON_TEMPLATE")
                     .doc("User-defined variables")
-                    .take(&mut args);
-                var.is_present().then(|| {
-                    var.parse_with(|v| -> Result<_, String> {
-                        let (name, value) = v
-                            .raw_value_or_empty()
-                            .split_once('=')
-                            .ok_or_else(|| "missing '='".to_owned())?;
+                    .take(&mut args)
+                    .present_and_then(|var| -> Result<_, String> {
+                        let (name, value) =
+                            var.value().split_once('=').ok_or_else(|| "missing '='")?;
                         let name = name.to_owned();
                         let value = ValueTemplate::parse(value, &prefix)?;
                         Ok(Var { name, value })
                     })
-                })
+                    .transpose()
             })
             .collect::<Result<_, _>>()?,
             json_template: noargs::arg("JSON_TEMPLATE")
                 .doc("JSON template used to generate values")
                 .example(r#"[0, {"$int": {"min": 1, "max": 8}}, 9]"#)
                 .take(&mut args)
-                .parse_with(|a| ValueTemplate::parse(a.raw_value_or_empty(), &prefix))?,
+                .then(|a| ValueTemplate::parse(a.value(), &prefix))?,
         };
 
         if let Some(help) = args.finish()? {
