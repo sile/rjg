@@ -10,8 +10,7 @@ repository = "https://github.com/sile/rjg"
 readme = "README.md"
 
 [dependencies]
-noargs = "0.2.1"
+noargs = "0.3.0"
+nojson = "0.1.1"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
-serde = { version = "1.0.210", features = ["derive"] }
-serde_json = "1.0.128"
