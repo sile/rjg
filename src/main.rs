@@ -455,7 +455,7 @@ impl StringGenerator {
 
 #[derive(Debug)]
 struct ArrayGenerator {
-    len: usize,
+    len: ValueTemplate,
     val: ValueTemplate,
 }
 
@@ -463,13 +463,17 @@ impl ArrayGenerator {
     fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
         let ([len, val], []) = raw.to_fixed_object(["len", "val"], [])?;
         Ok(Self {
-            len: len.try_to()?,
+            len: ValueTemplate::new(len, prefix)?,
             val: ValueTemplate::new(val, prefix)?,
         })
     }
 
     fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
-        (0..self.len)
+        let len = self.len.generate(rng, vars)?;
+        let Value::Integer(len) = len else {
+            return Err(format!("Array length is not an integer: {}", Json(len)));
+        };
+        (0..len)
             .map(|_| self.val.generate(rng, vars))
             .collect::<Result<_, _>>()
             .map(Value::Array)
@@ -533,6 +537,9 @@ impl ObjectMemberGenerator {
             }
             ObjectMemberGenerator::Generator { gn } => {
                 let v = gn.generate(rng, vars)?;
+                if matches!(v, Value::Null) {
+                    return Ok(None);
+                }
                 let Value::Object(mut v) = v else {
                     return Err(format!("not object: {}", Json(v)));
                 };
