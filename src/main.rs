@@ -142,7 +142,7 @@ impl ObjectOrGenerator {
         } else {
             Ok(Self::Object(
                 raw.to_object()?
-                    .map(|(n, v)| Ok((n.try_to()?, ValueTemplate::new(v, prefix)?)))
+                    .map(|(n, v)| Ok((n.try_into()?, ValueTemplate::new(v, prefix)?)))
                     .collect::<Result<_, _>>()?,
             ))
         }
@@ -414,9 +414,12 @@ impl IntegerGenerator {
     }
 
     fn new(raw: RawJsonValue<'_, '_>) -> Result<Self, JsonParseError> {
-        let ([min, max], []) = raw.to_fixed_object(["min", "max"], [])?;
-        let min: i64 = min.try_to()?;
-        let max: i64 = max.try_to()?;
+        let min_raw = raw.to_member("min")?.required()?;
+        let max_raw = raw.to_member("max")?.required()?;
+
+        let min: i64 = min_raw.try_into()?;
+        let max: i64 = max_raw.try_into()?;
+
         if min > max {
             return Err(invalid(raw)("empty range"));
         }
@@ -460,10 +463,12 @@ struct ArrayGenerator {
 
 impl ArrayGenerator {
     fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
-        let ([len, val], []) = raw.to_fixed_object(["len", "val"], [])?;
+        let len_raw = raw.to_member("len")?.required()?;
+        let val_raw = raw.to_member("val")?.required()?;
+
         Ok(Self {
-            len: ValueTemplate::new(len, prefix)?,
-            val: ValueTemplate::new(val, prefix)?,
+            len: ValueTemplate::new(len_raw, prefix)?,
+            val: ValueTemplate::new(val_raw, prefix)?,
         })
     }
 
@@ -510,11 +515,17 @@ impl ObjectMemberGenerator {
     fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
         if raw.kind().is_null() {
             Ok(Self::Null)
-        } else if let Ok(([name, val], [])) = raw.to_fixed_object(["name", "val"], []) {
-            Ok(Self::Member {
-                name: name.try_to()?,
-                val: ValueTemplate::new(val, prefix)?,
-            })
+        } else if let (Ok(name_member), Ok(val_member)) =
+            (raw.to_member("name"), raw.to_member("val"))
+        {
+            if let (Ok(name_raw), Ok(val_raw)) = (name_member.required(), val_member.required()) {
+                Ok(Self::Member {
+                    name: name_raw.try_into()?,
+                    val: ValueTemplate::new(val_raw, prefix)?,
+                })
+            } else {
+                Err(invalid(raw)("missing 'name' or 'val'"))
+            }
         } else if let Some((name, value)) = raw.to_object()?.next() {
             Ok(Self::Generator {
                 gn: Generator::new(name, value, prefix)?,
