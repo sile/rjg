@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{Read, Write};
 
 use rand_chacha::ChaChaRng;
 use rand_core::SeedableRng;
@@ -52,7 +52,14 @@ fn main() -> noargs::Result<()> {
     let stdout = std::io::stdout();
     let mut writer = stdout.lock();
     for _ in 0..count {
-        template_value.generate(&mut writer, &mut rng)?;
+        let result = template_value
+            .generate(&mut writer, &mut rng)
+            .and_then(|()| writeln!(writer));
+        if let Err(e) = result
+            && e.kind() != std::io::ErrorKind::BrokenPipe
+        {
+            Err(e)?;
+        }
     }
 
     Ok(())
