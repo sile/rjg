@@ -66,19 +66,25 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
                         bits,
                         signed: false,
                     }))
-                } else if let Some(s) = s.strip_prefix("$[")
+                } else if let Some(s) = s.strip_prefix("$s[")
                     && let Some(chars) = s.strip_suffix(']')
                 {
                     let chars: usize = chars.parse().map_err(|e| raw.invalid(e))?;
                     Ok(Some(Self::String { chars }))
                 } else {
                     Err(raw.invalid(
-                        "unknown generator format; expected $i<bits>, $u<bits>, or $[chars]",
+                        "unknown generator format; expected $i<bits>, $u<bits>, or $s[chars]",
                     ))
                 }
             }
             nojson::JsonValueKind::Object => {
-                todo!();
+                if let Some(choices) = raw.to_member("$oneof")?.get() {
+                    Ok(Some(Self::Oneof {
+                        choices: choices.try_into()?,
+                    }))
+                } else {
+                    Ok(None)
+                }
             }
             _ => Ok(None),
         }
