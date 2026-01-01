@@ -8,43 +8,32 @@ rjg
 Random JSON Generator.
 
 ```console
-// Install.
+// Install
 $ cargo install rjg
 
-// Generate integer arrays.
-$ rjg --count 3 '[0, {"$int": {"min": 1, "max": 8}}, 9]'
-[0,3,9]
+// Generate integer arrays
+$ echo '[0, "$u4", 9]' | rjg --count 3
 [0,8,9]
+[0,6,9]
 [0,5,9]
 
-// Generate objects with user-defined variables.
-$ rjg --count 3 \
-      --var key='{"$str": ["key_", "$alpha", "$alpha", "$digit"]}' \
-      --var val='{"$option": "$u16"}' \
-      '{"put": {"key": "$key", "value": "$val"}}'
-{"put":{"key":"key_im3","value":56386}}
-{"put":{"key":"key_qd0","value":null}}
-{"put":{"key":"key_ag4","value":49477}}
+// Generate objects
+$ echo '{"put": {"key": "$s[3]", "value": {"$oneof": [null, "$u16"]}}}' | rjg --count 3
+{"put":{"key":"cic","value":63308}}
+{"put":{"key":"b36","value":10142}}
+{"put":{"key":"9dj","value":null}}
 
 // Print help.
 $ rjg -h
 Random JSON Generator
 
-Usage: rjg [OPTIONS] <JSON_TEMPLATE>
-
-Example:
-  $ rjg '[0, {"$int": {"min": 1, "max": 8}}, 9]'
-
-Arguments:
-  <JSON_TEMPLATE> JSON template used to generate values
+Usage: rjg [OPTIONS]
 
 Options:
-  -h, --help                     Print help ('--help' for full help, '-h' for summary)
-      --version                  Print version
-  -c, --count <INTEGER>          Number of JSON values to generate [default: 1]
-  -p, --prefix <STRING>          Prefix for variable and generator names [default: $]
-  -s, --seed <INTEGER>           Seed for the random number generator
-  -v, --var <NAME=JSON_TEMPLATE> User-defined variables
+  -h, --help            Print help ('--help' for full help, '-h' for summary)
+      --version         Print version
+  -c, --count <INTEGER> Number of JSON values to generate [default: 1]
+  -s, --seed <INTEGER>  Seed for the random number generator
 ```
 
 Rules
