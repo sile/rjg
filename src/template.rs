@@ -66,8 +66,15 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
                         bits,
                         signed: false,
                     }))
+                } else if let Some(s) = s.strip_prefix("$[")
+                    && let Some(chars) = s.strip_suffix(']')
+                {
+                    let chars: usize = chars.parse().map_err(|e| raw.invalid(e))?;
+                    Ok(Some(Self::String { chars }))
                 } else {
-                    Err(raw.invalid("TODO"))
+                    Err(raw.invalid(
+                        "unknown generator format; expected $i<bits>, $u<bits>, or $[chars]",
+                    ))
                 }
             }
             nojson::JsonValueKind::Object => {
