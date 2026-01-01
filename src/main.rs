@@ -433,7 +433,7 @@ impl IntegerGenerator {
     }
 
     fn generate(&self, rng: &mut ChaChaRng, _vars: &Variables) -> Result<Value, String> {
-        let v = rng.next_u64() % (self.max - self.min) as u64;
+        let v = rng.next_u64() % (self.max - self.min + 1) as u64;
         Ok(Value::Integer(v as i64 + self.min))
     }
 }
