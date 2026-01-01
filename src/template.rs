@@ -1,9 +1,47 @@
+use std::io::Write;
+
+use rand_chacha::ChaChaRng;
+use rand_core::RngCore;
+
 #[derive(Debug)]
 pub enum ValueTemplate<'text, 'raw> {
     Literal(nojson::RawJsonValue<'text, 'raw>),
     Array(Vec<Self>),
-    Object(Vec<(String, Self)>),
+    Object(Vec<(nojson::RawJsonValue<'text, 'raw>, Self)>),
     Generator(ValueGenerator<'text, 'raw>),
+}
+
+impl<'text, 'raw> ValueTemplate<'text, 'raw> {
+    pub fn generate<W: Write>(&self, writer: &mut W, rng: &mut ChaChaRng) -> std::io::Result<()> {
+        match self {
+            Self::Literal(v) => write!(writer, "{}", v.as_raw_str())?,
+            ValueTemplate::Array(v) => {
+                write!(writer, "[")?;
+                for (i, element) in v.iter().enumerate() {
+                    if i != 0 {
+                        write!(writer, ",")?;
+                    }
+                    element.generate(writer, rng)?;
+                }
+                write!(writer, "]")?;
+            }
+            ValueTemplate::Object(v) => {
+                write!(writer, "{{")?;
+                for (i, (name, value)) in v.iter().enumerate() {
+                    if i != 0 {
+                        write!(writer, ",")?;
+                    }
+                    write!(writer, "{}:", name.as_raw_str())?;
+                    value.generate(writer, rng)?;
+                }
+                write!(writer, "}}")?;
+            }
+            ValueTemplate::Generator(g) => {
+                g.generate(writer, rng)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<'text, 'raw> TryFrom<nojson::RawJsonValue<'text, 'raw>> for ValueTemplate<'text, 'raw> {
@@ -23,7 +61,7 @@ impl<'text, 'raw> TryFrom<nojson::RawJsonValue<'text, 'raw>> for ValueTemplate<'
             nojson::JsonValueKind::Array => raw.try_into().map(Self::Array),
             nojson::JsonValueKind::Object => raw
                 .to_object()?
-                .map(|(k, v)| Ok((k.try_into()?, v.try_into()?)))
+                .map(|(k, v)| Ok((k, v.try_into()?)))
                 .collect::<Result<_, _>>()
                 .map(Self::Object),
         }
@@ -45,6 +83,10 @@ pub enum ValueGenerator<'text, 'raw> {
 }
 
 impl<'text, 'raw> ValueGenerator<'text, 'raw> {
+    fn generate<W: Write>(&self, writer: &mut W, rng: &mut ChaChaRng) -> std::io::Result<()> {
+        todo!()
+    }
+
     fn try_parse(
         raw: nojson::RawJsonValue<'text, 'raw>,
     ) -> Result<Option<Self>, nojson::JsonParseError> {
