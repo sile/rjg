@@ -12,5 +12,5 @@ readme = "README.md"
 [dependencies]
 noargs = "0.4.1"
 nojson = "0.3.6"
-rand_chacha = { version = "0.9.0", no-default-features = true }
-rand_core = { version = "0.9.3", no-default-features = true }
+rand_chacha = "0.9.0"
+rand_core = "0.9.3"
