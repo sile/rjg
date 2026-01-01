@@ -127,7 +127,7 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
         raw: nojson::RawJsonValue<'text, 'raw>,
     ) -> Result<Option<Self>, nojson::JsonParseError> {
         match raw.kind() {
-            nojson::JsonValueKind::String if raw.as_raw_str().starts_with('$') => {
+            nojson::JsonValueKind::String if raw.as_raw_str().starts_with("\"$") => {
                 let s = raw.to_unquoted_string_str()?;
                 if let Some(bits) = s.strip_prefix("$i") {
                     let bits: usize = bits.parse().map_err(|e| raw.invalid(e))?;
