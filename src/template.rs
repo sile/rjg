@@ -10,6 +10,10 @@ impl<'text, 'raw> TryFrom<nojson::RawJsonValue<'text, 'raw>> for ValueTemplate<'
     type Error = nojson::JsonParseError;
 
     fn try_from(raw: nojson::RawJsonValue<'text, 'raw>) -> Result<Self, Self::Error> {
+        if let Some(generator) = ValueGenerator::try_parse(raw)? {
+            return Ok(Self::Generator(generator));
+        }
+
         match raw.kind() {
             nojson::JsonValueKind::Null
             | nojson::JsonValueKind::Boolean
@@ -32,13 +36,44 @@ pub enum ValueGenerator<'text, 'raw> {
         bits: usize,
         signed: bool,
     },
-    Float {
-        bits: usize,
-    },
     String {
         chars: usize,
     },
     Oneof {
         choices: Vec<ValueTemplate<'text, 'raw>>,
     },
+}
+
+impl<'text, 'raw> ValueGenerator<'text, 'raw> {
+    fn try_parse(
+        raw: nojson::RawJsonValue<'text, 'raw>,
+    ) -> Result<Option<Self>, nojson::JsonParseError> {
+        match raw.kind() {
+            nojson::JsonValueKind::String if raw.as_raw_str().starts_with('$') => {
+                let s = raw.to_unquoted_string_str()?;
+                if let Some(bits) = s.strip_prefix("$i") {
+                    let bits: usize = bits.parse().map_err(|e| raw.invalid(e))?;
+                    if bits > 64 {
+                        return Err(raw.invalid("signed integers must be <= 64 bits"));
+                    }
+                    Ok(Some(Self::Integer { bits, signed: true }))
+                } else if let Some(bits) = s.strip_prefix("$u") {
+                    let bits: usize = bits.parse().map_err(|e| raw.invalid(e))?;
+                    if bits > 64 {
+                        return Err(raw.invalid("unsigned integers must be <= 64 bits"));
+                    }
+                    Ok(Some(Self::Integer {
+                        bits,
+                        signed: false,
+                    }))
+                } else {
+                    Err(raw.invalid("TODO"))
+                }
+            }
+            nojson::JsonValueKind::Object => {
+                todo!();
+            }
+            _ => Ok(None),
+        }
+    }
 }
