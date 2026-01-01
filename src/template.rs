@@ -131,12 +131,18 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
                 let s = raw.to_unquoted_string_str()?;
                 if let Some(bits) = s.strip_prefix("$i") {
                     let bits: usize = bits.parse().map_err(|e| raw.invalid(e))?;
+                    if bits == 0 {
+                        return Err(raw.invalid("signed integers must have at least 1 bit"));
+                    }
                     if bits > 64 {
                         return Err(raw.invalid("signed integers must be <= 64 bits"));
                     }
                     Ok(Some(Self::Integer { bits, signed: true }))
                 } else if let Some(bits) = s.strip_prefix("$u") {
                     let bits: usize = bits.parse().map_err(|e| raw.invalid(e))?;
+                    if bits == 0 {
+                        return Err(raw.invalid("unsigned integers must have at least 1 bit"));
+                    }
                     if bits > 64 {
                         return Err(raw.invalid("unsigned integers must be <= 64 bits"));
                     }
@@ -148,6 +154,9 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
                     && let Some(chars) = s.strip_suffix(']')
                 {
                     let chars: usize = chars.parse().map_err(|e| raw.invalid(e))?;
+                    if chars == 0 {
+                        return Err(raw.invalid("strings must have at least 1 character"));
+                    }
                     Ok(Some(Self::String { chars }))
                 } else {
                     Err(raw.invalid(
