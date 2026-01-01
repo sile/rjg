@@ -166,6 +166,9 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
             }
             nojson::JsonValueKind::Object => {
                 if let Some(choices) = raw.to_member("$oneof")?.get() {
+                    if choices.to_array()?.next().is_none() {
+                        return Err(raw.invalid("$oneof must have at least one choice"));
+                    }
                     Ok(Some(Self::Oneof {
                         choices: choices.try_into()?,
                     }))
