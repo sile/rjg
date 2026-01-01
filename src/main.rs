@@ -4,8 +4,8 @@ use std::{
 };
 
 use nojson::{DisplayJson, Json, JsonParseError, JsonValueKind, RawJson, RawJsonValue};
-use rand::{Rng, SeedableRng, seq::IndexedRandom};
 use rand_chacha::ChaChaRng;
+use rand_core::{RngCore, SeedableRng};
 
 struct Args {
     count: NonZeroUsize,
@@ -84,7 +84,12 @@ fn main() -> noargs::Result<()> {
         return Ok(());
     };
     let mut vars = Variables::new(&mut args);
-    let mut rng = ChaChaRng::seed_from_u64(args.seed.unwrap_or_else(rand::random));
+    let mut rng = ChaChaRng::seed_from_u64(args.seed.unwrap_or_else(|| {
+        std::time::UNIX_EPOCH
+            .elapsed()
+            .unwrap_or_default()
+            .as_millis() as u64
+    }));
     for i in 0..args.count.get() {
         vars.index = ValueTemplate::Integer(i as i64);
         match args.json_template.generate(&mut rng, &vars) {
@@ -398,7 +403,8 @@ impl OneofGenerator {
     }
 
     fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
-        self.0.choose(rng).expect("infallible").generate(rng, vars)
+        let i = (rng.next_u64() as usize) % self.0.len();
+        self.0[i].generate(rng, vars)
     }
 }
 
@@ -427,7 +433,8 @@ impl IntegerGenerator {
     }
 
     fn generate(&self, rng: &mut ChaChaRng, _vars: &Variables) -> Result<Value, String> {
-        Ok(Value::Integer(rng.random_range(self.min..=self.max)))
+        let v = rng.next_u64() % (self.max - self.min + 1) as u64;
+        Ok(Value::Integer(v as i64 + self.min))
     }
 }
 
@@ -577,7 +584,7 @@ impl OptionGenerator {
     }
 
     fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
-        if rng.random_bool(0.5) {
+        if rng.next_u32() & 1 == 1 {
             self.0.generate(rng, vars)
         } else {
             Ok(Value::Null)
