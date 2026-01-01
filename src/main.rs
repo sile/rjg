@@ -522,17 +522,13 @@ impl ObjectMemberGenerator {
     fn new(raw: RawJsonValue<'_, '_>, prefix: &str) -> Result<Self, JsonParseError> {
         if raw.kind().is_null() {
             Ok(Self::Null)
-        } else if let (Ok(name_member), Ok(val_member)) =
-            (raw.to_member("name"), raw.to_member("val"))
+        } else if let (Some(name_raw), Some(val_raw)) =
+            (raw.to_member("name")?.get(), raw.to_member("val")?.get())
         {
-            if let (Ok(name_raw), Ok(val_raw)) = (name_member.required(), val_member.required()) {
-                Ok(Self::Member {
-                    name: name_raw.try_into()?,
-                    val: ValueTemplate::new(val_raw, prefix)?,
-                })
-            } else {
-                Err(invalid(raw)("missing 'name' or 'val'"))
-            }
+            Ok(Self::Member {
+                name: name_raw.try_into()?,
+                val: ValueTemplate::new(val_raw, prefix)?,
+            })
         } else if let Some((name, value)) = raw.to_object()?.next() {
             Ok(Self::Generator {
                 gn: Generator::new(name, value, prefix)?,
