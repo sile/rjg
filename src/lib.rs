@@ -1,2 +1,2 @@
-pub mod input;
 pub mod json;
+pub mod template;
