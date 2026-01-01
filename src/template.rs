@@ -84,7 +84,43 @@ pub enum ValueGenerator<'text, 'raw> {
 
 impl<'text, 'raw> ValueGenerator<'text, 'raw> {
     fn generate<W: Write>(&self, writer: &mut W, rng: &mut ChaChaRng) -> std::io::Result<()> {
-        todo!()
+        match self {
+            Self::Integer { bits, signed } => {
+                let mask = if *bits >= 64 {
+                    u64::MAX
+                } else {
+                    (1u64 << bits) - 1
+                };
+                let value = rng.next_u64() & mask;
+
+                if *signed && *bits > 0 {
+                    let sign_bit = 1u64 << (*bits - 1);
+                    if (value & sign_bit) != 0 {
+                        let signed_value = (value as i64) - (1i64 << bits);
+                        write!(writer, "{signed_value}")?;
+                    } else {
+                        write!(writer, "{value}")?;
+                    }
+                } else {
+                    write!(writer, "{value}")?;
+                }
+            }
+            Self::String { chars } => {
+                const CHARSET: &[u8] =
+                    b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+                write!(writer, "\"")?;
+                for _ in 0..*chars {
+                    let i = (rng.next_u32() as usize) % CHARSET.len();
+                    write!(writer, "{}", CHARSET[i] as char)?;
+                }
+                write!(writer, "\"")?;
+            }
+            Self::Oneof { choices } => {
+                let i = (rng.next_u32() as usize) % choices.len();
+                choices[i].generate(writer, rng)?;
+            }
+        }
+        Ok(())
     }
 
     fn try_parse(
