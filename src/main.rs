@@ -584,7 +584,7 @@ impl OptionGenerator {
     }
 
     fn generate(&self, rng: &mut ChaChaRng, vars: &Variables) -> Result<Value, String> {
-        if rng.next_u32() % 2 == 1 {
+        if rng.next_u32() & 1 == 1 {
             self.0.generate(rng, vars)
         } else {
             Ok(Value::Null)
