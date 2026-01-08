@@ -51,9 +51,10 @@ fn main() -> noargs::Result<()> {
 
     let stdout = std::io::stdout();
     let mut writer = stdout.lock();
+    let mut seqno = 0;
     for _ in 0..count {
         let result = template_value
-            .generate(&mut writer, &mut rng)
+            .generate(&mut writer, &mut rng, &mut seqno)
             .and_then(|()| writeln!(writer));
         if let Err(e) = result
             && e.kind() != std::io::ErrorKind::BrokenPipe
