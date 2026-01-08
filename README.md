@@ -44,9 +44,10 @@ Rules
 - Input templates can use JSONC format (JSON with comments), but the output is always plain JSON
 - Literal JSON values in a template are output exactly as written
 - The following patterns are treated as **generators** and will produce random values:
-  - Strings beginning with `$` (e.g., `"$u8"`, `"$i32"`, `"$s[5]"`)
+  - Strings beginning with `$` (e.g., `"$u8"`, `"$i32"`, `"$s[5]"`, `"$seqno"`)
   - Objects with a single `$oneof` key
 - Generators produce output as follows:
+  - `"$seqno"`: Generates a sequence number starting from 0 and incrementing by 1 for each generated JSON value
   - `"$u<bits>"`: Generates a random unsigned integer with the specified bit width (e.g., `"$u8"`, `"$u16"`; 1-64 bits)
   - `"$i<bits>"`: Generates a random signed integer with the specified bit width (e.g., `"$i8"`, `"$i32"`; 1-64 bits)
   - `"$s[<length>]"`: Generates a random alphanumeric string of the specified length (e.g., `"$s[5]"`; minimum 1 character)
