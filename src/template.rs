@@ -12,7 +12,12 @@ pub enum ValueTemplate<'text, 'raw> {
 }
 
 impl<'text, 'raw> ValueTemplate<'text, 'raw> {
-    pub fn generate<W: Write>(&self, writer: &mut W, rng: &mut ChaChaRng) -> std::io::Result<()> {
+    pub fn generate<W: Write>(
+        &self,
+        writer: &mut W,
+        rng: &mut ChaChaRng,
+        seqno: &mut u64,
+    ) -> std::io::Result<()> {
         match self {
             Self::Literal(v) => write!(writer, "{}", v.as_raw_str())?,
             ValueTemplate::Array(v) => {
@@ -21,7 +26,7 @@ impl<'text, 'raw> ValueTemplate<'text, 'raw> {
                     if i != 0 {
                         write!(writer, ",")?;
                     }
-                    element.generate(writer, rng)?;
+                    element.generate(writer, rng, seqno)?;
                 }
                 write!(writer, "]")?;
             }
@@ -32,12 +37,12 @@ impl<'text, 'raw> ValueTemplate<'text, 'raw> {
                         write!(writer, ",")?;
                     }
                     write!(writer, "{}:", name.as_raw_str())?;
-                    value.generate(writer, rng)?;
+                    value.generate(writer, rng, seqno)?;
                 }
                 write!(writer, "}}")?;
             }
             ValueTemplate::Generator(g) => {
-                g.generate(writer, rng)?;
+                g.generate(writer, rng, seqno)?;
             }
         }
         Ok(())
@@ -70,6 +75,7 @@ impl<'text, 'raw> TryFrom<nojson::RawJsonValue<'text, 'raw>> for ValueTemplate<'
 
 #[derive(Debug)]
 pub enum ValueGenerator<'text, 'raw> {
+    SequenceNumber,
     Integer {
         bits: usize,
         signed: bool,
@@ -83,8 +89,17 @@ pub enum ValueGenerator<'text, 'raw> {
 }
 
 impl<'text, 'raw> ValueGenerator<'text, 'raw> {
-    fn generate<W: Write>(&self, writer: &mut W, rng: &mut ChaChaRng) -> std::io::Result<()> {
+    fn generate<W: Write>(
+        &self,
+        writer: &mut W,
+        rng: &mut ChaChaRng,
+        seqno: &mut u64,
+    ) -> std::io::Result<()> {
         match self {
+            Self::SequenceNumber => {
+                write!(writer, "{seqno}")?;
+                *seqno += 1;
+            }
             Self::Integer { bits, signed } => {
                 let mask = if *bits >= 64 {
                     u64::MAX
@@ -117,7 +132,7 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
             }
             Self::Oneof { choices } => {
                 let i = (rng.next_u32() as usize) % choices.len();
-                choices[i].generate(writer, rng)?;
+                choices[i].generate(writer, rng, seqno)?;
             }
         }
         Ok(())
@@ -127,9 +142,11 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
         raw: nojson::RawJsonValue<'text, 'raw>,
     ) -> Result<Option<Self>, nojson::JsonParseError> {
         match raw.kind() {
-            nojson::JsonValueKind::String if raw.as_raw_str().starts_with("\"$") => {
+            nojson::JsonValueKind::String if raw.as_raw_str().starts_with("\\\"$") => {
                 let s = raw.to_unquoted_string_str()?;
-                if let Some(bits) = s.strip_prefix("$i") {
+                if s == "$seqno" {
+                    Ok(Some(Self::SequenceNumber))
+                } else if let Some(bits) = s.strip_prefix("$i") {
                     let bits: usize = bits.parse().map_err(|e| raw.invalid(e))?;
                     if bits == 0 {
                         return Err(raw.invalid("signed integers must have at least 1 bit"));
@@ -160,7 +177,7 @@ impl<'text, 'raw> ValueGenerator<'text, 'raw> {
                     Ok(Some(Self::String { chars }))
                 } else {
                     Err(raw.invalid(
-                        "unknown generator format; expected $i<bits>, $u<bits>, or $s[chars]",
+                        "unknown generator format; expected $seqno, $i<bits>, $u<bits>, or $s[chars]",
                     ))
                 }
             }
